@@ -1,0 +1,30 @@
+config:
+  target: "http://localhost:3003" # Target Booking Service
+  phases:
+    - duration: 60
+      arrivalRate: 5
+      name: "Sustain Load (5 users/sec)"
+    - duration: 30
+      arrivalRate: 5
+      rampTo: 20
+      name: "Ramp up to Stress"
+    - duration: 60
+      arrivalRate: 20
+      name: "Stress Test (20 users/sec)"
+  payload:
+    path: "./payload.csv"
+    fields:
+      - "flightId"
+      - "passengerEmail"
+
+scenarios:
+  - name: "Booking Flow"
+    flow:
+      - post:
+          url: "/bookings"
+          json:
+            flightId: "{{ flightId }}"
+            passengerEmail: "{{ passengerEmail }}"
+      - think: 1
+      - get:
+          url: "/flights"

@@ -1,0 +1,176 @@
+services:
+
+  # ── Infrastructure ─────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:13
+    container_name: aerolink-postgres
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: aerolink
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d aerolink"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:6.2.0
+    container_name: aerolink-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/2181 && echo srvr >&3 && cat <&3 | grep -q Mode"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 10s
+
+  kafka:
+    image: confluentinc/cp-kafka:6.2.0
+    container_name: aerolink-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  dynamodb:
+    image: amazon/dynamodb-local
+    container_name: aerolink-dynamodb
+    ports:
+      - "8000:8000"
+    command: "-jar DynamoDBLocal.jar -sharedDb"
+
+  # ── Microservices ──────────────────────────────────────────────────────────
+
+  auth-service:
+    build: ./auth-service
+    container_name: aerolink-auth
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 3001
+      DB_HOST: postgres
+      DB_USER: user
+      DB_PASSWORD: password
+      DB_NAME: aerolink
+      DB_PORT: 5432
+      JWT_SECRET: aerolink_secret_key
+    restart: on-failure
+
+  flight-service:
+    build: ./flight-service
+    container_name: aerolink-flight
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      PORT: 3002
+      DB_HOST: postgres
+      DB_USER: user
+      DB_PASSWORD: password
+      DB_NAME: aerolink
+      DB_PORT: 5432
+      KAFKA_BROKER: kafka:9092
+    restart: on-failure
+
+  booking-service:
+    build: ./booking-service
+    container_name: aerolink-booking
+    ports:
+      - "3003:3003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      flight-service:
+        condition: service_started
+    environment:
+      PORT: 3003
+      DB_HOST: postgres
+      DB_USER: user
+      DB_PASSWORD: password
+      DB_NAME: aerolink
+      DB_PORT: 5432
+      KAFKA_BROKER: kafka:9092
+      FLIGHT_SERVICE_URL: http://flight-service:3002
+    restart: on-failure
+
+  baggage-service:
+    build: ./baggage-service
+    container_name: aerolink-baggage
+    ports:
+      - "3004:3004"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      dynamodb:
+        condition: service_started
+    environment:
+      PORT: 3004
+      KAFKA_BROKER: kafka:9092
+      DYNAMODB_ENDPOINT: http://dynamodb:8000
+      AWS_ACCESS_KEY_ID: dummy
+      AWS_SECRET_ACCESS_KEY: dummy
+      AWS_REGION: us-east-1
+    restart: on-failure
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: aerolink-gateway
+    ports:
+      - "3000:3000"
+    depends_on:
+      - auth-service
+      - flight-service
+      - booking-service
+      - baggage-service
+    environment:
+      GATEWAY_PORT: 3000
+      JWT_SECRET: aerolink_secret_key
+      AUTH_SERVICE_URL: http://auth-service:3001
+      FLIGHT_SERVICE_URL: http://flight-service:3002
+      BOOKING_SERVICE_URL: http://booking-service:3003
+      BAGGAGE_SERVICE_URL: http://baggage-service:3004
+    restart: on-failure
+
+  frontend:
+    build: ./frontend
+    container_name: aerolink-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - api-gateway
+
+volumes:
+  postgres_data:
