@@ -6,6 +6,7 @@ const swaggerJsDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 const cors = require('cors');
 require('dotenv').config();
+const logger = require('./logger');
 
 const app = express();
 app.use(express.json());
@@ -13,7 +14,7 @@ app.use(cors());
 
 // Request Logger
 app.use((req, res, next) => {
-  console.log(`[Auth Service] ${req.method} ${req.url} - Body:`, req.body);
+  logger.info('Incoming request', { method: req.method, url: req.url });
   next();
 });
 
@@ -75,7 +76,7 @@ app.post('/auth/register', async (req, res) => {
     await pool.query('INSERT INTO users (email, password) VALUES ($1, $2)', [email, hashedPassword]);
     res.status(201).json({ message: 'User registered successfully in PostgreSQL' });
   } catch (error) {
-    console.error(error);
+    logger.error('Registration failed', { error: error.message });
     res.status(500).json({ error: 'Registration failed - User might already exist' });
   }
 });
@@ -124,9 +125,24 @@ app.get('/auth/verify', (req, res) => {
   });
 });
 
+const seedAdmin = async () => {
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@aerolink.com';
+  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  const existing = await pool.query('SELECT id FROM users WHERE email = $1', [adminEmail]);
+  if (existing.rows.length === 0) {
+    const hashed = await bcrypt.hash(adminPassword, 10);
+    await pool.query(
+      'INSERT INTO users (email, password, role) VALUES ($1, $2, $3)',
+      [adminEmail, hashed, 'admin']
+    );
+    logger.info('Admin user seeded', { email: adminEmail });
+  }
+};
+
 if (require.main === module) {
+  seedAdmin().catch(err => logger.error('Admin seed failed', { error: err.message }));
   app.listen(PORT, () => {
-    console.log(`Auth Service running on port ${PORT}`);
+    logger.info(`Auth Service running on port ${PORT}`);
   });
 }
 

@@ -1,10 +1,11 @@
 const express = require('express');
 const { Kafka } = require('kafkajs');
-const { DynamoDBClient, PutItemCommand, GetItemCommand, CreateTableCommand } = require('@aws-sdk/client-dynamodb');
+const { DynamoDBClient, PutItemCommand, GetItemCommand, CreateTableCommand, UpdateItemCommand } = require('@aws-sdk/client-dynamodb');
 const swaggerJsDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 const cors = require('cors');
 require('dotenv').config();
+const logger = require('./logger');
 
 const app = express();
 app.use(express.json());
@@ -28,10 +29,10 @@ const initDynamoDB = async () => {
       KeySchema: [{ AttributeName: 'BaggageId', KeyType: 'HASH' }],
       BillingMode: 'PAY_PER_REQUEST',
     }));
-    console.log('DynamoDB Baggage table created');
+    logger.info('DynamoDB Baggage table created');
   } catch (err) {
     if (err.name === 'ResourceInUseException') {
-      console.log('DynamoDB Baggage table already exists');
+      logger.info('DynamoDB Baggage table already exists');
     } else {
       throw err;
     }
@@ -44,15 +45,17 @@ const kafka = new Kafka({
   brokers: [process.env.KAFKA_BROKER || 'localhost:9092'],
 });
 const consumer = kafka.consumer({ groupId: 'baggage-group' });
+const producer = kafka.producer();
 
 const initKafka = async () => {
   await consumer.connect();
+  await producer.connect();
   await consumer.subscribe({ topic: 'booking-events', fromBeginning: true });
 
   await consumer.run({
     eachMessage: async ({ topic, partition, message }) => {
       const event = JSON.parse(message.value.toString());
-      console.log(`[Baggage Service] 🔔 RECEIVED KAFKA EVENT: ${event.type} for Booking ${event.bookingId}`);
+      logger.info('Kafka event received', { type: event.type, bookingId: event.bookingId });
       
       if (event.type === 'CREATED') {
         // Initialize baggage record in DynamoDB
@@ -67,9 +70,9 @@ const initKafka = async () => {
         };
         try {
           await ddbClient.send(new PutItemCommand(params));
-          console.log(`Baggage initialized for booking ${event.bookingId} in DynamoDB`);
+          logger.info('Baggage record created', { bookingId: event.bookingId });
         } catch (err) {
-          console.error('DynamoDB Error:', err);
+          logger.error('DynamoDB write failed', { error: err.message });
         }
       }
     },
@@ -77,7 +80,7 @@ const initKafka = async () => {
 };
 if (require.main === module) {
   initDynamoDB().then(() => initKafka()).catch(err => {
-    console.error('Startup failed:', err);
+    logger.error('Startup failed', { error: err.message });
     process.exit(1);
   });
 }
@@ -136,9 +139,77 @@ app.get('/baggage/:id', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /baggage/{id}/status:
+ *   patch:
+ *     summary: Update baggage status
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [REGISTERED, IN-TRANSIT, DELIVERED]
+ *     responses:
+ *       200:
+ *         description: Status updated and event emitted
+ *       400:
+ *         description: Invalid status value
+ *       404:
+ *         description: Baggage not found
+ */
+const VALID_STATUSES = ['REGISTERED', 'IN-TRANSIT', 'DELIVERED'];
+
+app.patch('/baggage/:id/status', async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!VALID_STATUSES.includes(status)) {
+    return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` });
+  }
+
+  try {
+    await ddbClient.send(new UpdateItemCommand({
+      TableName: 'Baggage',
+      Key: { BaggageId: { S: id } },
+      UpdateExpression: 'SET #s = :status, LastUpdate = :lastUpdate',
+      ExpressionAttributeNames: { '#s': 'Status' },
+      ExpressionAttributeValues: {
+        ':status': { S: status },
+        ':lastUpdate': { S: new Date().toISOString() },
+      },
+      ConditionExpression: 'attribute_exists(BaggageId)',
+    }));
+
+    await producer.send({
+      topic: 'baggage-status-updates',
+      messages: [{ value: JSON.stringify({ baggageId: id, status, timestamp: new Date().toISOString() }) }],
+    });
+
+    logger.info('Baggage status updated', { baggageId: id, status });
+    res.json({ message: 'Baggage status updated', baggageId: id, status });
+  } catch (error) {
+    if (error.name === 'ConditionalCheckFailedException') {
+      return res.status(404).json({ error: 'Baggage not found' });
+    }
+    logger.error('Failed to update baggage status', { error: error.message });
+    res.status(500).json({ error: 'Failed to update baggage status' });
+  }
+});
+
 if (require.main === module) {
   app.listen(PORT, () => {
-    console.log(`Baggage Service running on port ${PORT}`);
+    logger.info(`Baggage Service running on port ${PORT}`);
   });
 }
 

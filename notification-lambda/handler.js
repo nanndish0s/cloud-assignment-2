@@ -1,45 +1,85 @@
-/**
- * AeroLink Notification Service - AWS Lambda Handler
- * This function is triggered by Kafka events (BookingCreated, FlightUpdated).
- */
+const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+const logger = require('./logger');
+
+const ses = new SESClient({ region: process.env.AWS_REGION || 'us-east-1' });
+
+const SES_SENDER = process.env.SES_SENDER || 'notifications@aerolink.com';
+
+const buildEmailParams = (payload) => ({
+  Source: SES_SENDER,
+  Destination: {
+    ToAddresses: [payload.passengerEmail],
+  },
+  Message: {
+    Subject: {
+      Data: `AeroLink Booking Confirmation — ${payload.bookingId}`,
+    },
+    Body: {
+      Text: {
+        Data: [
+          `Dear Passenger,`,
+          ``,
+          `Your booking has been confirmed.`,
+          ``,
+          `Booking ID : ${payload.bookingId}`,
+          `Flight     : ${payload.flightId}`,
+          ``,
+          `Thank you for choosing AeroLink.`,
+        ].join('\n'),
+      },
+      Html: {
+        Data: `
+          <h2>Booking Confirmed</h2>
+          <p>Dear Passenger,</p>
+          <p>Your booking has been confirmed with the following details:</p>
+          <table>
+            <tr><td><strong>Booking ID</strong></td><td>${payload.bookingId}</td></tr>
+            <tr><td><strong>Flight</strong></td><td>${payload.flightId}</td></tr>
+          </table>
+          <p>Thank you for choosing AeroLink.</p>
+        `,
+      },
+    },
+  },
+});
 
 exports.handler = async (event) => {
-    console.log('Notification Lambda triggered with event:', JSON.stringify(event, null, 2));
+  const records = event.records || [];
+  logger.info('Notification Lambda triggered', { recordCount: records.length });
 
-    // In a real scenario, the 'event' object would contain records from Kafka
-    // For local demonstration, we process the first record
+  const results = [];
+
+  for (const record of records) {
     try {
-        const records = event.records || [];
-        
-        for (const record of records) {
-            // Kafka payload is usually base64 encoded in Lambda triggers
-            const payload = JSON.parse(Buffer.from(record.value, 'base64').toString());
-            console.log('Processing notification for:', payload.passengerEmail);
+      const payload = JSON.parse(Buffer.from(record.value, 'base64').toString());
 
-            // Logic to send email via Amazon SES
-            /*
-            await ses.sendEmail({
-                Source: 'notifications@aerolink.com',
-                Destination: { ToAddresses: [payload.passengerEmail] },
-                Message: {
-                    Subject: { Data: 'AeroLink Booking Confirmation' },
-                    Body: { Text: { Data: `Your booking ${payload.bookingId} is confirmed.` } }
-                }
-            }).promise();
-            */
-            
-            console.log(`Notification sent to ${payload.passengerEmail} for booking ${payload.bookingId}`);
-        }
+      if (payload.type !== 'CREATED') {
+        logger.info('Skipping non-booking event', { type: payload.type });
+        continue;
+      }
 
-        return {
-            statusCode: 200,
-            body: JSON.stringify({ message: 'Notifications processed successfully' }),
-        };
-    } catch (error) {
-        console.error('Error processing notifications:', error);
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ error: 'Failed to process notifications' }),
-        };
+      logger.info('Sending booking confirmation email', {
+        to: payload.passengerEmail,
+        bookingId: payload.bookingId,
+        flightId: payload.flightId,
+      });
+
+      await ses.send(new SendEmailCommand(buildEmailParams(payload)));
+
+      logger.info('Email sent successfully', {
+        to: payload.passengerEmail,
+        bookingId: payload.bookingId,
+      });
+
+      results.push({ bookingId: payload.bookingId, status: 'sent' });
+    } catch (err) {
+      logger.error('Failed to send notification', { error: err.message });
+      results.push({ status: 'failed', error: err.message });
     }
+  }
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify({ message: 'Notifications processed', results }),
+  };
 };

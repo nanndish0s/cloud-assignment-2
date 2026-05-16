@@ -5,7 +5,10 @@ jest.mock('@aws-sdk/client-dynamodb', () => ({
   PutItemCommand: jest.fn(),
   GetItemCommand: jest.fn(),
   CreateTableCommand: jest.fn(),
+  UpdateItemCommand: jest.fn(),
 }));
+
+const mockProducerSend = jest.fn().mockResolvedValue(undefined);
 
 jest.mock('kafkajs', () => ({
   Kafka: jest.fn(() => ({
@@ -13,6 +16,10 @@ jest.mock('kafkajs', () => ({
       connect: jest.fn().mockResolvedValue(undefined),
       subscribe: jest.fn().mockResolvedValue(undefined),
       run: jest.fn().mockResolvedValue(undefined),
+    })),
+    producer: jest.fn(() => ({
+      connect: jest.fn().mockResolvedValue(undefined),
+      send: mockProducerSend,
     })),
   })),
 }));
@@ -65,5 +72,72 @@ describe('GET /baggage/:id', () => {
 
     expect(res.status).toBe(500);
     expect(res.body.error).toBe('Failed to fetch baggage status');
+  });
+});
+
+describe('PATCH /baggage/:id/status', () => {
+  test('updates status and emits Kafka event', async () => {
+    mockSend.mockResolvedValue({});
+
+    const res = await request(app)
+      .patch('/baggage/BAG-BK-1234/status')
+      .send({ status: 'IN-TRANSIT' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe('Baggage status updated');
+    expect(res.body.status).toBe('IN-TRANSIT');
+    expect(mockProducerSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: 'baggage-status-updates',
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            value: expect.stringContaining('IN-TRANSIT'),
+          }),
+        ]),
+      })
+    );
+  });
+
+  test('updates status to DELIVERED', async () => {
+    mockSend.mockResolvedValue({});
+
+    const res = await request(app)
+      .patch('/baggage/BAG-BK-1234/status')
+      .send({ status: 'DELIVERED' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('DELIVERED');
+  });
+
+  test('returns 400 for invalid status value', async () => {
+    const res = await request(app)
+      .patch('/baggage/BAG-BK-1234/status')
+      .send({ status: 'LOST' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Invalid status/);
+  });
+
+  test('returns 404 when baggage record does not exist', async () => {
+    const err = new Error('Conditional check failed');
+    err.name = 'ConditionalCheckFailedException';
+    mockSend.mockRejectedValue(err);
+
+    const res = await request(app)
+      .patch('/baggage/BAG-NOTFOUND/status')
+      .send({ status: 'IN-TRANSIT' });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Baggage not found');
+  });
+
+  test('returns 500 on unexpected DynamoDB error', async () => {
+    mockSend.mockRejectedValue(new Error('DynamoDB unavailable'));
+
+    const res = await request(app)
+      .patch('/baggage/BAG-BK-1234/status')
+      .send({ status: 'IN-TRANSIT' });
+
+    expect(res.status).toBe(500);
   });
 });

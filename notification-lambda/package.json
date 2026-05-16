@@ -1,0 +1,10 @@
+{
+  "name": "aerolink-notification-lambda",
+  "version": "1.0.0",
+  "description": "AeroLink notification service - AWS Lambda handler",
+  "main": "handler.js",
+  "dependencies": {
+    "@aws-sdk/client-ses": "^3.0.0",
+    "winston": "^3.11.0"
+  }
+}

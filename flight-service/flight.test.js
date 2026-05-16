@@ -56,6 +56,42 @@ describe('GET /flights', () => {
   });
 });
 
+describe('POST /flights', () => {
+  test('creates a new flight successfully', async () => {
+    mockPool.query.mockResolvedValue({ rows: [] });
+
+    const res = await request(app)
+      .post('/flights')
+      .send({ id: 'AL404', origin: 'London', destination: 'Sydney', seats: 120, price: 'LKR 310,000' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.flight.id).toBe('AL404');
+    expect(res.body.message).toMatch(/created/i);
+  });
+
+  test('returns 400 when required fields are missing', async () => {
+    const res = await request(app)
+      .post('/flights')
+      .send({ id: 'AL404', origin: 'London' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Missing required fields/);
+  });
+
+  test('returns 400 when flight ID already exists', async () => {
+    const err = new Error('duplicate key');
+    err.code = '23505';
+    mockPool.query.mockRejectedValue(err);
+
+    const res = await request(app)
+      .post('/flights')
+      .send({ id: 'AL101', origin: 'London', destination: 'New York', seats: 50, price: 'LKR 145,000' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/already exists/);
+  });
+});
+
 describe('PATCH /flights/:id/availability', () => {
   test('updates seat count and emits Kafka event', async () => {
     mockPool.query.mockResolvedValue({ rows: [] });

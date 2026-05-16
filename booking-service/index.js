@@ -2,18 +2,20 @@ const express = require('express');
 const { Pool } = require('pg');
 const { Kafka } = require('kafkajs');
 const axios = require('axios');
+const axiosRetry = require('axios-retry').default;
 const CircuitBreaker = require('opossum');
 const swaggerJsDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 const cors = require('cors');
 require('dotenv').config();
+const logger = require('./logger');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
 app.use((req, res, next) => {
-  console.log(`[Booking Service] ${req.method} ${req.url} - Auth: ${req.headers['authorization'] ? 'Present' : 'Missing'}`);
+  logger.info('Incoming request', { method: req.method, url: req.url, auth: req.headers['authorization'] ? 'present' : 'missing' });
   next();
 });
 
@@ -21,6 +23,16 @@ app.get('/health', (req, res) => res.json({ status: 'UP', service: 'Booking Serv
 
 const PORT = process.env.PORT || 3003;
 const FLIGHT_SERVICE_URL = process.env.FLIGHT_SERVICE_URL || 'http://localhost:3002';
+
+// Retry on network errors and 5xx responses — up to 3 attempts with exponential backoff
+axiosRetry(axios, {
+  retries: 3,
+  retryDelay: axiosRetry.exponentialDelay,
+  retryCondition: axiosRetry.isNetworkOrIdempotentRequestError,
+  onRetry: (retryCount, error) => {
+    logger.warn('Retrying request', { retryCount, error: error.message, url: error.config?.url });
+  },
+});
 
 // Mock DB Connection
 const pool = new Pool({
@@ -40,7 +52,7 @@ const producer = kafka.producer();
 
 const initKafka = async () => {
   await producer.connect();
-  console.log('Booking Service Kafka Producer connected');
+  logger.info('Kafka Producer connected');
 };
 if (require.main === module) initKafka();
 
@@ -116,7 +128,7 @@ app.post('/bookings', async (req, res) => {
       'INSERT INTO bookings (booking_id, flight_id, passenger_email) VALUES ($1, $2, $3)',
       [bookingId, flightId, passengerEmail]
     );
-    console.log(`Booking ${bookingId} saved to PostgreSQL`);
+    logger.info('Booking saved', { bookingId, flightId, passengerEmail });
 
     // 3. Emit "BookingCreated" event to Kafka
     await producer.send({
@@ -131,14 +143,14 @@ app.post('/bookings', async (req, res) => {
 
     res.status(201).json({ bookingId, message: 'Booking successful' });
   } catch (error) {
-    console.error(error);
+    logger.error('Booking failed', { error: error.message });
     res.status(500).json({ error: 'Booking failed' });
   }
 });
 
 if (require.main === module) {
   app.listen(PORT, () => {
-    console.log(`Booking Service running on port ${PORT}`);
+    logger.info(`Booking Service running on port ${PORT}`);
   });
 }
 

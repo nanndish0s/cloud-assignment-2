@@ -89,3 +89,51 @@ describe('Protected routes - /baggage', () => {
     expect(res.body.proxied).toBe(true);
   });
 });
+
+describe('RBAC - PATCH /flights/:id/availability (admin only)', () => {
+  test('returns 401 when no token provided', async () => {
+    const res = await request(app).patch('/flights/AL101/availability').send({ seats: 49 });
+    expect(res.status).toBe(401);
+  });
+
+  test('returns 403 when user role tries to update availability', async () => {
+    jwt.verify.mockImplementation((token, secret, cb) =>
+      cb(null, { email: 'user@aerolink.com', role: 'user' })
+    );
+
+    const res = await request(app)
+      .patch('/flights/AL101/availability')
+      .set('Authorization', 'Bearer user.token')
+      .send({ seats: 49 });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/Access denied/);
+  });
+
+  test('returns 403 when gate-agent role tries to update availability', async () => {
+    jwt.verify.mockImplementation((token, secret, cb) =>
+      cb(null, { email: 'agent@aerolink.com', role: 'gate-agent' })
+    );
+
+    const res = await request(app)
+      .patch('/flights/AL101/availability')
+      .set('Authorization', 'Bearer agent.token')
+      .send({ seats: 49 });
+
+    expect(res.status).toBe(403);
+  });
+
+  test('proxies request when admin role is used', async () => {
+    jwt.verify.mockImplementation((token, secret, cb) =>
+      cb(null, { email: 'admin@aerolink.com', role: 'admin' })
+    );
+
+    const res = await request(app)
+      .patch('/flights/AL101/availability')
+      .set('Authorization', 'Bearer admin.token')
+      .send({ seats: 49 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.proxied).toBe(true);
+  });
+});

@@ -81,6 +81,8 @@ services:
       DB_NAME: aerolink
       DB_PORT: 5432
       JWT_SECRET: aerolink_secret_key
+      ADMIN_EMAIL: admin@aerolink.com
+      ADMIN_PASSWORD: admin123
     restart: on-failure
 
   flight-service:
