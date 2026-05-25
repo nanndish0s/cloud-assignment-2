@@ -29,3 +29,6 @@ build/
 # Test coverage
 coverage/
 **/coverage/
+
+# Claude Code
+.claude/

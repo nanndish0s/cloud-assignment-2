@@ -100,6 +100,48 @@ describe('POST /auth/login', () => {
   });
 });
 
+describe('POST /auth/token (OAuth 2.0)', () => {
+  test('returns access_token with valid password grant', async () => {
+    mockPool.query.mockResolvedValue({
+      rows: [{ email: 'test@aerolink.com', password: '$2b$10$hash', role: 'user' }],
+    });
+    bcrypt.compare.mockResolvedValue(true);
+
+    const res = await request(app)
+      .post('/auth/token')
+      .send({ grant_type: 'password', username: 'test@aerolink.com', password: 'securepass' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.access_token).toBe('mocked.jwt.token');
+    expect(res.body.token_type).toBe('Bearer');
+    expect(res.body.expires_in).toBe(3600);
+    expect(res.body.scope).toBe('user');
+  });
+
+  test('returns 400 for unsupported grant_type', async () => {
+    const res = await request(app)
+      .post('/auth/token')
+      .send({ grant_type: 'client_credentials' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('unsupported_grant_type');
+  });
+
+  test('returns 401 for invalid credentials', async () => {
+    mockPool.query.mockResolvedValue({
+      rows: [{ email: 'test@aerolink.com', password: '$2b$10$hash', role: 'user' }],
+    });
+    bcrypt.compare.mockResolvedValue(false);
+
+    const res = await request(app)
+      .post('/auth/token')
+      .send({ grant_type: 'password', username: 'test@aerolink.com', password: 'wrong' });
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('invalid_grant');
+  });
+});
+
 describe('GET /auth/verify', () => {
   test('returns valid:true for a valid token', async () => {
     jwt.verify.mockImplementation((token, secret, cb) =>

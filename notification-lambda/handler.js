@@ -2,7 +2,6 @@ const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
 const logger = require('./logger');
 
 const ses = new SESClient({ region: process.env.AWS_REGION || 'us-east-1' });
-
 const SES_SENDER = process.env.SES_SENDER || 'notifications@aerolink.com';
 
 const buildEmailParams = (payload) => ({
@@ -43,34 +42,46 @@ const buildEmailParams = (payload) => ({
   },
 });
 
-exports.handler = async (event) => {
-  const records = event.records || [];
-  logger.info('Notification Lambda triggered', { recordCount: records.length });
+const sendNotification = async (payload) => {
+  logger.info('Sending booking confirmation email', {
+    to: payload.passengerEmail,
+    bookingId: payload.bookingId,
+    flightId: payload.flightId,
+  });
+  await ses.send(new SendEmailCommand(buildEmailParams(payload)));
+  logger.info('Email sent successfully', { to: payload.passengerEmail, bookingId: payload.bookingId });
+};
 
+exports.handler = async (event) => {
   const results = [];
 
+  // SQS trigger — Records[].body is a JSON string
+  if (event.Records && event.Records[0]?.eventSource === 'aws:sqs') {
+    logger.info('Lambda triggered via SQS', { recordCount: event.Records.length });
+    for (const record of event.Records) {
+      try {
+        const payload = JSON.parse(record.body);
+        await sendNotification(payload);
+        results.push({ bookingId: payload.bookingId, status: 'sent' });
+      } catch (err) {
+        logger.error('Failed to send SQS notification', { error: err.message });
+        results.push({ status: 'failed', error: err.message });
+      }
+    }
+    return { statusCode: 200, body: JSON.stringify({ message: 'Notifications processed', results }) };
+  }
+
+  // Legacy Kafka record format (base64-encoded values)
+  const records = event.records || [];
+  logger.info('Lambda triggered via Kafka', { recordCount: records.length });
   for (const record of records) {
     try {
       const payload = JSON.parse(Buffer.from(record.value, 'base64').toString());
-
       if (payload.type !== 'CREATED') {
         logger.info('Skipping non-booking event', { type: payload.type });
         continue;
       }
-
-      logger.info('Sending booking confirmation email', {
-        to: payload.passengerEmail,
-        bookingId: payload.bookingId,
-        flightId: payload.flightId,
-      });
-
-      await ses.send(new SendEmailCommand(buildEmailParams(payload)));
-
-      logger.info('Email sent successfully', {
-        to: payload.passengerEmail,
-        bookingId: payload.bookingId,
-      });
-
+      await sendNotification(payload);
       results.push({ bookingId: payload.bookingId, status: 'sent' });
     } catch (err) {
       logger.error('Failed to send notification', { error: err.message });
@@ -78,8 +89,5 @@ exports.handler = async (event) => {
     }
   }
 
-  return {
-    statusCode: 200,
-    body: JSON.stringify({ message: 'Notifications processed', results }),
-  };
+  return { statusCode: 200, body: JSON.stringify({ message: 'Notifications processed', results }) };
 };

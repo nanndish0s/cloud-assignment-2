@@ -11,15 +11,23 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+let AWSXRay = null;
+if (process.env.ENABLE_XRAY === 'true') {
+  AWSXRay = require('aws-xray-sdk');
+  AWSXRay.config([AWSXRay.plugins.ECSPlugin]);
+  app.use(AWSXRay.express.openSegment('baggage-service'));
+}
+
 app.get('/health', (req, res) => res.json({ status: 'UP', service: 'Baggage Service' }));
 
 const PORT = process.env.PORT || 3004;
 
 // DynamoDB Configuration
-const ddbClient = new DynamoDBClient({
-  region: 'us-east-1',
-  endpoint: process.env.DYNAMODB_ENDPOINT || 'http://localhost:8000',
-});
+// DYNAMODB_ENDPOINT is only set for local dev (points to DynamoDB Local).
+// In AWS, it is unset so the SDK connects to real DynamoDB using the task role.
+const ddbConfig = { region: process.env.AWS_REGION || 'ap-southeast-1' };
+if (process.env.DYNAMODB_ENDPOINT) ddbConfig.endpoint = process.env.DYNAMODB_ENDPOINT;
+const ddbClient = new DynamoDBClient(ddbConfig);
 
 const initDynamoDB = async () => {
   try {
@@ -206,6 +214,8 @@ app.patch('/baggage/:id/status', async (req, res) => {
     res.status(500).json({ error: 'Failed to update baggage status' });
   }
 });
+
+if (AWSXRay) app.use(AWSXRay.express.closeSegment());
 
 if (require.main === module) {
   app.listen(PORT, () => {

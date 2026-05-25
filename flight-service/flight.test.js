@@ -92,6 +92,90 @@ describe('POST /flights', () => {
   });
 });
 
+describe('PUT /flights/:id', () => {
+  test('updates a flight successfully', async () => {
+    const updatedFlight = { id: 'AL101', origin: 'London', destination: 'Dubai', seats: 80, price: 'LKR 200,000' };
+    mockPool.query.mockResolvedValue({ rows: [updatedFlight], rowCount: 1 });
+
+    const res = await request(app)
+      .put('/flights/AL101')
+      .send({ origin: 'London', destination: 'Dubai', seats: 80, price: 'LKR 200,000' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.flight.destination).toBe('Dubai');
+    expect(res.body.message).toMatch(/updated/i);
+    expect(mockProducer.send).toHaveBeenCalledWith(
+      expect.objectContaining({ topic: 'flight-schedule-updates' })
+    );
+  });
+
+  test('returns 400 when required fields are missing', async () => {
+    const res = await request(app)
+      .put('/flights/AL101')
+      .send({ origin: 'London' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Missing required fields/);
+  });
+
+  test('returns 404 when flight does not exist', async () => {
+    mockPool.query.mockResolvedValue({ rows: [], rowCount: 0 });
+
+    const res = await request(app)
+      .put('/flights/AL999')
+      .send({ origin: 'London', destination: 'Dubai', seats: 80, price: 'LKR 200,000' });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/AL999/);
+  });
+
+  test('returns 500 on database error', async () => {
+    mockPool.query.mockRejectedValue(new Error('DB error'));
+
+    const res = await request(app)
+      .put('/flights/AL101')
+      .send({ origin: 'London', destination: 'Dubai', seats: 80, price: 'LKR 200,000' });
+
+    expect(res.status).toBe(500);
+  });
+});
+
+describe('DELETE /flights/:id', () => {
+  test('deletes a flight successfully', async () => {
+    mockPool.query.mockResolvedValue({ rows: [{ id: 'AL101' }], rowCount: 1 });
+
+    const res = await request(app).delete('/flights/AL101');
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/deleted/i);
+    expect(mockProducer.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topic: 'flight-schedule-updates',
+        messages: expect.arrayContaining([
+          expect.objectContaining({ value: expect.stringContaining('DELETED') }),
+        ]),
+      })
+    );
+  });
+
+  test('returns 404 when flight does not exist', async () => {
+    mockPool.query.mockResolvedValue({ rows: [], rowCount: 0 });
+
+    const res = await request(app).delete('/flights/AL999');
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/AL999/);
+  });
+
+  test('returns 500 on database error', async () => {
+    mockPool.query.mockRejectedValue(new Error('DB error'));
+
+    const res = await request(app).delete('/flights/AL101');
+
+    expect(res.status).toBe(500);
+  });
+});
+
 describe('PATCH /flights/:id/availability', () => {
   test('updates seat count and emits Kafka event', async () => {
     mockPool.query.mockResolvedValue({ rows: [] });

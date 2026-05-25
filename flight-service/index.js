@@ -16,6 +16,13 @@ app.use((req, res, next) => {
   next();
 });
 
+let AWSXRay = null;
+if (process.env.ENABLE_XRAY === 'true') {
+  AWSXRay = require('aws-xray-sdk');
+  AWSXRay.config([AWSXRay.plugins.ECSPlugin]);
+  app.use(AWSXRay.express.openSegment('flight-service'));
+}
+
 app.get('/health', (req, res) => res.json({ status: 'UP', service: 'Flight Service' }));
 
 const PORT = process.env.PORT || 3002;
@@ -40,7 +47,30 @@ const initKafka = async () => {
   await producer.connect();
   logger.info('Kafka Producer connected');
 };
-if (require.main === module) initKafka();
+
+const initDB = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS flights (
+      id VARCHAR(20) PRIMARY KEY,
+      origin VARCHAR(100),
+      destination VARCHAR(100),
+      seats INTEGER,
+      price VARCHAR(50)
+    )
+  `);
+  const { rows } = await pool.query('SELECT COUNT(*) FROM flights');
+  if (parseInt(rows[0].count) === 0) {
+    await pool.query(`
+      INSERT INTO flights (id, origin, destination, seats, price) VALUES
+      ('AL101', 'London', 'New York', 50, 'LKR 145,000'),
+      ('AL202', 'Paris', 'Tokyo', 30, 'LKR 265,000'),
+      ('AL303', 'Dubai', 'Singapore', 75, 'LKR 195,000')
+    `);
+    logger.info('Initial flights seeded');
+  }
+};
+
+if (require.main === module) initDB().then(() => initKafka());
 
 // Swagger Configuration
 const swaggerOptions = {
@@ -285,6 +315,8 @@ app.patch('/flights/:id/availability', async (req, res) => {
     res.status(500).json({ error: 'Failed to update availability' });
   }
 });
+
+if (AWSXRay) app.use(AWSXRay.express.closeSegment());
 
 if (require.main === module) {
   app.listen(PORT, () => {

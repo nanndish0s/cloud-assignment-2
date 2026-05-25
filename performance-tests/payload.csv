@@ -1,6 +1,6 @@
-flightId,passengerEmail
-AL101,test1@aerolink.com
-AL202,test2@aerolink.com
-AL303,test3@aerolink.com
-AL101,test4@aerolink.com
-AL202,test5@aerolink.com
+flightId,email,password
+AL303,admin@aerolink.com,admin123
+AL303,admin@aerolink.com,admin123
+AL303,admin@aerolink.com,admin123
+AL303,admin@aerolink.com,admin123
+AL303,admin@aerolink.com,admin123

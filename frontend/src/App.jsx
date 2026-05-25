@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Plane, Luggage, User, CheckCircle, Bell, Lock, Mail, Shield, Search, RefreshCw, Pencil, Trash2, X } from 'lucide-react';
 
-const API_BASE = 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const decodeToken = (token) => {
   try {

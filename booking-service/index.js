@@ -19,6 +19,15 @@ app.use((req, res, next) => {
   next();
 });
 
+let AWSXRay = null;
+if (process.env.ENABLE_XRAY === 'true') {
+  AWSXRay = require('aws-xray-sdk');
+  AWSXRay.config([AWSXRay.plugins.ECSPlugin]);
+  AWSXRay.captureHTTPsGlobal(require('https'));
+  AWSXRay.captureHTTPsGlobal(require('http'));
+  app.use(AWSXRay.express.openSegment('booking-service'));
+}
+
 app.get('/health', (req, res) => res.json({ status: 'UP', service: 'Booking Service' }));
 
 const PORT = process.env.PORT || 3003;
@@ -54,7 +63,26 @@ const initKafka = async () => {
   await producer.connect();
   logger.info('Kafka Producer connected');
 };
-if (require.main === module) initKafka();
+
+const initDB = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS bookings (
+      booking_id VARCHAR(50) PRIMARY KEY,
+      flight_id VARCHAR(20),
+      passenger_email VARCHAR(255),
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+};
+
+// SQS client — only created when BOOKING_SQS_URL is set (AWS deployment)
+let sqsClient = null;
+if (process.env.BOOKING_SQS_URL) {
+  const { SQSClient } = require('@aws-sdk/client-sqs');
+  sqsClient = new SQSClient({ region: process.env.AWS_REGION || 'us-east-1' });
+}
+
+if (require.main === module) initDB().then(() => initKafka());
 
 // Swagger Configuration
 const swaggerOptions = {
@@ -136,7 +164,17 @@ app.post('/bookings', async (req, res) => {
       messages: [{ value: JSON.stringify({ bookingId, flightId, passengerEmail, type: 'CREATED' }) }],
     });
 
-    // 4. Update Flight availability (Call Flight Service)
+    // 4. Notify Lambda via SQS (AWS only — no-op when BOOKING_SQS_URL is not set)
+    if (sqsClient) {
+      const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+      await sqsClient.send(new SendMessageCommand({
+        QueueUrl: process.env.BOOKING_SQS_URL,
+        MessageBody: JSON.stringify({ bookingId, flightId, passengerEmail, type: 'BOOKING_CONFIRMED' }),
+      }));
+      logger.info('Booking notification queued to SQS', { bookingId });
+    }
+
+    // 5. Update flight seat availability
     await axios.patch(`${FLIGHT_SERVICE_URL}/flights/${flightId}/availability`, {
       seats: flight.seats - 1
     });
@@ -147,6 +185,8 @@ app.post('/bookings', async (req, res) => {
     res.status(500).json({ error: 'Booking failed' });
   }
 });
+
+if (AWSXRay) app.use(AWSXRay.express.closeSegment());
 
 if (require.main === module) {
   app.listen(PORT, () => {

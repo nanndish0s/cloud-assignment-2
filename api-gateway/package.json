@@ -13,11 +13,16 @@
     "supertest": "^6.3.0"
   },
   "dependencies": {
+    "aws-xray-sdk": "^3.6.0",
+    "axios": "^1.15.2",
+    "axios-retry": "^4.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.0",
     "express": "^4.18.0",
-    "http-proxy-middleware": "^2.0.6",
     "jsonwebtoken": "^8.5.1",
+    "opossum": "^9.0.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.0",
     "winston": "^3.11.0"
   }
 }

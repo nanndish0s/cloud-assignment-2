@@ -1,16 +1,20 @@
 config:
   target: "http://aerolink-alb-83828357.ap-southeast-1.elb.amazonaws.com:3000"
   phases:
-    - duration: 60
-      arrivalRate: 2
+    - duration: 30
+      arrivalRate: 10
       name: "Warm up"
     - duration: 60
-      arrivalRate: 2
-      rampTo: 10
-      name: "Ramp up"
-    - duration: 60
       arrivalRate: 10
-      name: "Sustained load"
+      rampTo: 30
+      name: "Ramp to stress"
+    - duration: 60
+      arrivalRate: 30
+      name: "Peak stress"
+    - duration: 30
+      arrivalRate: 30
+      rampTo: 5
+      name: "Recovery"
   payload:
     path: "./payload.csv"
     fields:
@@ -22,12 +26,12 @@ config:
       Content-Type: "application/json"
 
 scenarios:
-  - name: "Browse flights (public)"
+  - name: "Browse flights (stress)"
     flow:
       - get:
           url: "/flights"
 
-  - name: "Login and book flight"
+  - name: "Login and book (stress)"
     flow:
       - post:
           url: "/auth/login"
@@ -37,7 +41,6 @@ scenarios:
           capture:
             json: "$.token"
             as: "authToken"
-      - think: 1
       - post:
           url: "/bookings"
           headers:
@@ -45,6 +48,3 @@ scenarios:
           json:
             flightId: "{{ flightId }}"
             passengerEmail: "{{ email }}"
-      - think: 1
-      - get:
-          url: "/flights"

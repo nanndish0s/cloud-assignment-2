@@ -1,0 +1,21 @@
+{
+  "name": "aerolink-integration-tests",
+  "version": "1.0.0",
+  "description": "Integration tests for AeroLink microservices",
+  "scripts": {
+    "test": "jest --forceExit --runInBand --testTimeout=30000",
+    "test:aws": "cross-env API_BASE=http://aerolink-alb-1225936577.ap-southeast-1.elb.amazonaws.com:3000 jest --forceExit --runInBand --testTimeout=30000"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testTimeout": 30000,
+    "testSequencer": "./sequencer.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "jest": "^29.0.0"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "aerolink-performance-tests",
+  "version": "1.0.0",
+  "scripts": {
+    "load": "artillery run --output results-load.json load-test.yml && artillery report results-load.json",
+    "stress": "artillery run --output results-stress.json stress-test.yml && artillery report results-stress.json"
+  },
+  "devDependencies": {
+    "artillery": "1.7.9"
+  }
+}
