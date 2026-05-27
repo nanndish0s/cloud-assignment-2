@@ -70,9 +70,16 @@ const initDB = async () => {
       booking_id VARCHAR(50) PRIMARY KEY,
       flight_id VARCHAR(20),
       passenger_email VARCHAR(255),
+      status VARCHAR(20) DEFAULT 'CONFIRMED',
+      seat_number VARCHAR(10),
+      checked_in_at TIMESTAMP,
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  // Migrate existing tables that were created without these columns
+  await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'CONFIRMED'`);
+  await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS seat_number VARCHAR(10)`);
+  await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS checked_in_at TIMESTAMP`);
 };
 
 // SQS client — only created when BOOKING_SQS_URL is set (AWS deployment)
@@ -153,8 +160,8 @@ app.post('/bookings', async (req, res) => {
     // 2. Create Booking in DB
     const bookingId = `BK-${Math.floor(Math.random() * 10000)}`;
     await pool.query(
-      'INSERT INTO bookings (booking_id, flight_id, passenger_email) VALUES ($1, $2, $3)',
-      [bookingId, flightId, passengerEmail]
+      'INSERT INTO bookings (booking_id, flight_id, passenger_email, status) VALUES ($1, $2, $3, $4)',
+      [bookingId, flightId, passengerEmail, 'CONFIRMED']
     );
     logger.info('Booking saved', { bookingId, flightId, passengerEmail });
 
@@ -183,6 +190,92 @@ app.post('/bookings', async (req, res) => {
   } catch (error) {
     logger.error('Booking failed', { error: error.message });
     res.status(500).json({ error: 'Booking failed' });
+  }
+});
+
+/**
+ * @swagger
+ * /bookings/my:
+ *   get:
+ *     summary: Get all bookings for a passenger
+ *     parameters:
+ *       - in: query
+ *         name: email
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of bookings for the passenger
+ *       400:
+ *         description: Email query parameter required
+ */
+app.get('/bookings/my', async (req, res) => {
+  const { email } = req.query;
+  if (!email) return res.status(400).json({ error: 'Email query parameter required' });
+  try {
+    const result = await pool.query(
+      'SELECT * FROM bookings WHERE passenger_email = $1 ORDER BY created_at DESC',
+      [email]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    logger.error('Failed to fetch bookings', { error: error.message });
+    res.status(500).json({ error: 'Failed to fetch bookings' });
+  }
+});
+
+/**
+ * @swagger
+ * /bookings/{id}/checkin:
+ *   patch:
+ *     summary: Check in a passenger for their booked flight
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Check-in successful, returns assigned seat number
+ *       400:
+ *         description: Already checked in or booking not in CONFIRMED status
+ *       404:
+ *         description: Booking not found
+ */
+app.patch('/bookings/:id/checkin', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { rows } = await pool.query('SELECT * FROM bookings WHERE booking_id = $1', [id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Booking not found' });
+    if (rows[0].status === 'CHECKED_IN') return res.status(400).json({ error: 'Already checked in' });
+    if (rows[0].status !== 'CONFIRMED') return res.status(400).json({ error: 'Booking is not in CONFIRMED status' });
+
+    const seatLetter = String.fromCharCode(65 + Math.floor(Math.random() * 6));
+    const seatNumber = `${seatLetter}${Math.floor(Math.random() * 30) + 1}`;
+
+    await pool.query(
+      'UPDATE bookings SET status = $1, seat_number = $2, checked_in_at = NOW() WHERE booking_id = $3',
+      ['CHECKED_IN', seatNumber, id]
+    );
+
+    await producer.send({
+      topic: 'booking-events',
+      messages: [{ value: JSON.stringify({
+        bookingId: id,
+        flightId: rows[0].flight_id,
+        passengerEmail: rows[0].passenger_email,
+        seatNumber,
+        type: 'CHECKED_IN',
+      }) }],
+    });
+
+    logger.info('Passenger checked in', { bookingId: id, seatNumber });
+    res.json({ message: 'Check-in successful', bookingId: id, seatNumber, status: 'CHECKED_IN' });
+  } catch (error) {
+    logger.error('Check-in failed', { error: error.message });
+    res.status(500).json({ error: 'Check-in failed' });
   }
 });
 

@@ -1,5 +1,5 @@
 config:
-  target: "http://aerolink-alb-83828357.ap-southeast-1.elb.amazonaws.com:3000"
+  target: "http://aerolink-alb-1030233230.ap-southeast-1.elb.amazonaws.com:3000"
   phases:
     - duration: 30
       arrivalRate: 10

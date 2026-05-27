@@ -40,6 +40,10 @@ function App() {
   const [newStatus, setNewStatus] = useState('');
   const [statusUpdateMsg, setStatusUpdateMsg] = useState('');
 
+  // My Bookings
+  const [myBookings, setMyBookings] = useState([]);
+  const [checkinMsg, setCheckinMsg] = useState('');
+
   // Admin panel — update availability
   const [adminFlightId, setAdminFlightId] = useState('');
   const [adminSeats, setAdminSeats] = useState('');
@@ -58,6 +62,7 @@ function App() {
       setUserRole(decoded?.role || 'user');
       setIsLoggedIn(true);
       fetchFlights();
+      fetchMyBookings(decoded?.email || email);
     }
   }, [token]);
 
@@ -67,6 +72,35 @@ function App() {
       setFlights(res.data);
     } catch {
       console.error('Failed to fetch flights');
+    }
+  };
+
+  const fetchMyBookings = async (passengerEmail) => {
+    const lookupEmail = passengerEmail || email;
+    if (!lookupEmail) return;
+    try {
+      const res = await axios.get(`${API_BASE}/bookings/my?email=${encodeURIComponent(lookupEmail)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setMyBookings(res.data);
+    } catch {
+      console.error('Failed to fetch bookings');
+    }
+  };
+
+  const handleCheckin = async (bookingId) => {
+    try {
+      const res = await axios.patch(
+        `${API_BASE}/bookings/${bookingId}/checkin`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setCheckinMsg(`Checked in! Seat: ${res.data.seatNumber}`);
+      setTimeout(() => setCheckinMsg(''), 6000);
+      fetchMyBookings();
+    } catch (error) {
+      setCheckinMsg(error.response?.data?.error || 'Check-in failed');
+      setTimeout(() => setCheckinMsg(''), 4000);
     }
   };
 
@@ -119,6 +153,7 @@ function App() {
       setTimeout(() => fetchBaggageById(`BAG-${bid}`), 2000);
       setTimeout(() => setBookingStatus(null), 6000);
       fetchFlights();
+      fetchMyBookings();
     } catch (error) {
       alert(error.response?.data?.error || 'Booking failed');
     } finally {
@@ -290,7 +325,7 @@ function App() {
 
       <main className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-        {/* LEFT — Flights */}
+        {/* LEFT — Flights + My Bookings */}
         <div className="lg:col-span-2 space-y-6">
           <h2 className="text-xl font-semibold text-slate-300 flex items-center gap-2">
             <Plane className="w-5 h-5" /> Available Flights
@@ -359,6 +394,52 @@ function App() {
               </div>
             ))}
           </div>
+
+          {/* My Bookings */}
+          {myBookings.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-xl font-semibold text-slate-300 flex items-center gap-2">
+                <CheckCircle className="w-5 h-5" /> My Bookings
+              </h2>
+              {checkinMsg && (
+                <div className="p-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-300 text-sm flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 shrink-0" /> {checkinMsg}
+                </div>
+              )}
+              <div className="grid gap-3">
+                {myBookings.map(b => (
+                  <div key={b.booking_id} className="glass p-4 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-mono text-white">{b.booking_id}</div>
+                      <div className="text-xs text-slate-400 mt-0.5">Flight: {b.flight_id}</div>
+                      {b.seat_number && (
+                        <div className="text-xs text-primary-400 mt-0.5">Seat: {b.seat_number}</div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {b.status === 'CHECKED_IN' ? (
+                        <span className="text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-300 font-semibold uppercase">
+                          Checked In ✓
+                        </span>
+                      ) : (
+                        <>
+                          <span className="text-xs px-2 py-1 rounded-full bg-blue-500/20 text-blue-300 font-semibold uppercase">
+                            {b.status}
+                          </span>
+                          <button
+                            onClick={() => handleCheckin(b.booking_id)}
+                            className="btn-primary text-xs py-1 px-3"
+                          >
+                            Check In
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* RIGHT — Sidebar */}

@@ -489,6 +489,63 @@ app.use('/flights', proxyVia('flights', SERVICES.flights));
  *         description: No token provided
  *       503:
  *         description: Flight service unavailable (circuit open)
+ *
+ * /bookings/my:
+ *   get:
+ *     summary: Get all bookings for the authenticated passenger
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: email
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: passenger@aerolink.com
+ *     responses:
+ *       200:
+ *         description: List of bookings
+ *       401:
+ *         description: No token provided
+ *
+ * /bookings/{id}/checkin:
+ *   patch:
+ *     summary: Check in a passenger for their booked flight
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         example: BK-4821
+ *     responses:
+ *       200:
+ *         description: Check-in successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Check-in successful
+ *                 bookingId:
+ *                   type: string
+ *                   example: BK-4821
+ *                 seatNumber:
+ *                   type: string
+ *                   example: C14
+ *                 status:
+ *                   type: string
+ *                   example: CHECKED_IN
+ *       400:
+ *         description: Already checked in or booking not confirmed
+ *       404:
+ *         description: Booking not found
  */
 app.use('/bookings', authenticate, proxyVia('bookings', SERVICES.bookings));
 
