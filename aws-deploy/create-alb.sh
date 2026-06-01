@@ -30,14 +30,29 @@ NEW_ALB_DNS=$(aws elbv2 describe-load-balancers \
 echo "  New ALB ARN: $NEW_ALB_ARN"
 echo "  New ALB DNS: $NEW_ALB_DNS"
 
-# ── Create port 3000 listener → api-gateway target group ──────────────────
-echo "Creating port 3000 listener..."
+# ── Create listeners ───────────────────────────────────────────────────────
+echo "Creating listeners..."
+
+FE_TG_ARN=$(aws elbv2 describe-target-groups \
+  --names "${PROJECT}-frontend-tg" \
+  --query "TargetGroups[0].TargetGroupArn" \
+  --output text --region "$AWS_REGION" 2>/dev/null || true)
+
 aws elbv2 create-listener \
   --load-balancer-arn "$NEW_ALB_ARN" \
   --protocol HTTP --port 3000 \
   --default-actions "Type=forward,TargetGroupArn=${GW_TG_ARN}" \
   --region "$AWS_REGION" --no-cli-pager > /dev/null
 echo "  Listener created: port 3000 → api-gateway"
+
+if [ -n "$FE_TG_ARN" ] && [ "$FE_TG_ARN" != "None" ]; then
+  aws elbv2 create-listener \
+    --load-balancer-arn "$NEW_ALB_ARN" \
+    --protocol HTTP --port 80 \
+    --default-actions "Type=forward,TargetGroupArn=${FE_TG_ARN}" \
+    --region "$AWS_REGION" --no-cli-pager > /dev/null
+  echo "  Listener created: port 80 → frontend"
+fi
 
 # ── Update .env.deploy with new ALB values ─────────────────────────────────
 echo "Updating .env.deploy..."
@@ -56,34 +71,32 @@ sed -i "s|target: \"http://.*:3000\"|target: \"http://${NEW_ALB_DNS}:3000\"|g" \
   "$ROOT/performance-tests/stress-test.yml" 2>/dev/null || true
 echo "  Performance tests updated"
 
-# ── Rebuild and redeploy frontend with new ALB DNS ─────────────────────────
-echo "Rebuilding frontend with new ALB DNS..."
-cd "$ROOT/frontend"
-npm install --silent
-VITE_API_URL="http://${NEW_ALB_DNS}:3000" npm run build
-cd "$SCRIPT_DIR"
-echo "  Frontend built"
+# ── Rebuild and push frontend Docker image with new ALB DNS ───────────────
+echo "Rebuilding frontend Docker image with new ALB DNS..."
+aws ecr get-login-password --region "$AWS_REGION" \
+  | docker login --username AWS --password-stdin "$ECR_BASE"
 
-echo "Uploading to S3..."
-aws s3 sync "$ROOT/frontend/dist/" "s3://${S3_BUCKET}/" \
-  --delete \
-  --region "$AWS_REGION" \
-  --cache-control "public,max-age=0,must-revalidate" \
-  --quiet
-echo "  S3 upload complete"
+docker build \
+  --build-arg "VITE_API_URL=http://${NEW_ALB_DNS}:3000" \
+  -t "${PROJECT}-frontend" "$ROOT/frontend"
+docker tag "${PROJECT}-frontend:latest" "${ECR_BASE}/${PROJECT}-frontend:latest"
+docker push "${ECR_BASE}/${PROJECT}-frontend:latest"
+echo "  Frontend image pushed to ECR"
 
-echo "Invalidating CloudFront cache..."
-aws cloudfront create-invalidation \
-  --distribution-id "$CF_DIST_ID" \
-  --paths "/*" \
-  --no-cli-pager > /dev/null
-echo "  CloudFront invalidation started (~5 min to propagate)"
+echo "Force-redeploying frontend ECS service..."
+aws ecs update-service \
+  --cluster "${PROJECT}-cluster" \
+  --service frontend \
+  --force-new-deployment \
+  --desired-count 1 \
+  --region "$AWS_REGION" --no-cli-pager > /dev/null
+echo "  Frontend ECS service redeploying"
 
 echo ""
 echo "=== ALB Recreated ==="
 echo ""
+echo "  Frontend:    http://${NEW_ALB_DNS}"
 echo "  API Gateway: http://${NEW_ALB_DNS}:3000"
-echo "  Frontend:    https://${CF_DOMAIN}"
+echo "  Swagger:     http://${NEW_ALB_DNS}:3000/api-docs"
 echo ""
-echo "Next: run start-all.sh to start ECS services, RDS, and Kafka."
-echo "ECS tasks will automatically register with the existing target group."
+echo "ECS tasks take ~2 min to reach RUNNING state."

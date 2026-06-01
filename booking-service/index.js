@@ -50,6 +50,8 @@ const pool = new Pool({
   database: process.env.DB_NAME || 'aerolink',
   password: process.env.DB_PASSWORD || 'password',
   port: process.env.DB_PORT || 5432,
+  max: 20,
+  idleTimeoutMillis: 30000,
 });
 
 // Kafka Configuration
@@ -128,9 +130,9 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
  */
 // Circuit Breaker Options
 const breakerOptions = {
-  timeout: 3000, // If the service takes longer than 3s, trigger a failure
-  errorThresholdPercentage: 50, // If 50% of requests fail, open the circuit
-  resetTimeout: 10000 // Wait 10s before trying again
+  timeout: 3000,
+  errorThresholdPercentage: 60,
+  resetTimeout: 5000
 };
 
 const flightServiceBreaker = new CircuitBreaker(async (url) => {
@@ -165,11 +167,11 @@ app.post('/bookings', async (req, res) => {
     );
     logger.info('Booking saved', { bookingId, flightId, passengerEmail });
 
-    // 3. Emit "BookingCreated" event to Kafka
-    await producer.send({
+    // 3. Emit "BookingCreated" event to Kafka (fire-and-forget — don't block the response)
+    producer.send({
       topic: 'booking-events',
       messages: [{ value: JSON.stringify({ bookingId, flightId, passengerEmail, type: 'CREATED' }) }],
-    });
+    }).catch(err => logger.warn('Kafka publish failed', { error: err.message }));
 
     // 4. Notify Lambda via SQS (AWS only — no-op when BOOKING_SQS_URL is not set)
     if (sqsClient) {

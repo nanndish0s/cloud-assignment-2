@@ -1,7 +1,5 @@
 #!/bin/bash
 # ── AeroLink AWS Deployment Configuration ────────────────────────────────────
-# Edit the values below before running any deploy scripts.
-# Run scripts from Git Bash or WSL on Windows.
 
 export AWS_REGION="ap-southeast-1"
 export AWS_PROFILE="aerolink-new"

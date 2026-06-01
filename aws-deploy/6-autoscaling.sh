@@ -20,7 +20,7 @@ for SVC in api-gateway booking-service; do
     --resource-id "service/${CLUSTER}/${SVC}" \
     --scalable-dimension ecs:service:DesiredCount \
     --min-capacity 1 \
-    --max-capacity 3 \
+    --max-capacity 5 \
     --region "$AWS_REGION" --no-cli-pager
   echo "  ✓ Registered scalable target: $SVC (1–3 tasks)"
 done
@@ -45,7 +45,7 @@ aws application-autoscaling put-scaling-policy \
       \"PredefinedMetricType\": \"ALBRequestCountPerTarget\",
       \"ResourceLabel\": \"${RESOURCE_LABEL}\"
     },
-    \"ScaleOutCooldown\": 60,
+    \"ScaleOutCooldown\": 30,
     \"ScaleInCooldown\": 120,
     \"DisableScaleIn\": false
   }" \
@@ -53,7 +53,6 @@ aws application-autoscaling put-scaling-policy \
 echo "  ✓ api-gateway: scale out when >50 req/target/min, scale in after 120s idle"
 
 # ── Target tracking: CPU utilisation (booking-service) ─────────────────────
-# Scale out when avg CPU > 60% — booking-service is CPU-bound (Kafka + DB writes).
 echo "Configuring CPU tracking for booking-service..."
 aws application-autoscaling put-scaling-policy \
   --service-namespace ecs \
@@ -66,7 +65,7 @@ aws application-autoscaling put-scaling-policy \
     \"PredefinedMetricSpecification\": {
       \"PredefinedMetricType\": \"ECSServiceAverageCPUUtilization\"
     },
-    \"ScaleOutCooldown\": 60,
+    \"ScaleOutCooldown\": 30,
     \"ScaleInCooldown\": 120,
     \"DisableScaleIn\": false
   }" \

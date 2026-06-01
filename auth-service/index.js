@@ -79,13 +79,19 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
  */
 app.post('/auth/register', async (req, res) => {
   const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-    await pool.query('INSERT INTO users (email, password) VALUES ($1, $2)', [email, hashedPassword]);
-    res.status(201).json({ message: 'User registered successfully in PostgreSQL' });
+    await pool.query('INSERT INTO users (email, password, role) VALUES ($1, $2, $3)', [email, hashedPassword, 'user']);
+    res.status(201).json({ message: 'User registered successfully' });
   } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
     logger.error('Registration failed', { error: error.message });
-    res.status(500).json({ error: 'Registration failed - User might already exist' });
+    res.status(500).json({ error: 'Registration failed' });
   }
 });
 
