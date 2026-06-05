@@ -8,6 +8,10 @@ node_modules/
 **/.env
 **/.env.local
 aws-deploy/.env.deploy
+aws-deploy/.env.deploy.OLD
+
+# SSH keys
+*.pem
 
 # Logs
 logs/
