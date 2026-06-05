@@ -17,12 +17,12 @@ describe('Auth Service — Integration', () => {
       expect(res.data.message).toMatch(/registered/i);
     });
 
-    test('returns 500 when email already exists', async () => {
+    test('returns 409 when email already exists', async () => {
       const res = await client.post('/auth/register', {
         email: TEST_EMAIL,
         password: TEST_PASSWORD,
       });
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(409);
     });
   });
 
