@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AeroLink - Notification Lambda triggered by SQS, sends email via SES
+
+Parameters:
+  SesSender:
+    Type: String
+    Description: Verified SES sender email address (must be verified in SES sandbox)
+
+Resources:
+
+  NotificationLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: aerolink-notification
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role:
+        Fn::ImportValue: AeroLink-LambdaRoleArn
+      Timeout: 30
+      Environment:
+        Variables:
+          SES_SENDER: !Ref SesSender
+          AWS_NODEJS_CONNECTION_REUSE_ENABLED: '1'
+      Code:
+        ZipFile: |
+          const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+
+          const ses = new SESClient({ region: process.env.AWS_REGION });
+
+          exports.handler = async (event) => {
+            for (const record of event.Records) {
+              const body = JSON.parse(record.body);
+              const { bookingId, flightId, passengerEmail } = body;
+
+              const command = new SendEmailCommand({
+                Source: process.env.SES_SENDER,
+                Destination: { ToAddresses: [passengerEmail] },
+                Message: {
+                  Subject: { Data: 'Booking Confirmation - AeroLink' },
+                  Body: {
+                    Html: {
+                      Data: `
+                        <h2>Booking Confirmed</h2>
+                        <p>Dear Passenger,</p>
+                        <p>Your booking has been confirmed.</p>
+                        <ul>
+                          <li><strong>Booking ID:</strong> ${bookingId}</li>
+                          <li><strong>Flight ID:</strong> ${flightId}</li>
+                        </ul>
+                        <p>Thank you for flying with AeroLink.</p>
+                      `
+                    }
+                  }
+                }
+              });
+
+              await ses.send(command);
+              console.log('Email sent', { bookingId, passengerEmail });
+            }
+          };
+
+  SqsTrigger:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn:
+        Fn::ImportValue: AeroLink-SqsQueueArn
+      FunctionName: !GetAtt NotificationLambda.Arn
+      BatchSize: 1
+      Enabled: true
+
+Outputs:
+  LambdaArn:
+    Value: !GetAtt NotificationLambda.Arn

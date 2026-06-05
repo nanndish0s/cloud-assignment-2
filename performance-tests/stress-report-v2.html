@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Artillery report</title>
+  <script src='https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js'></script>
+  <script src='https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.0/d3.min.js' charset='utf-8'></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/metrics-graphics/2.6.0/metricsgraphics.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/metrics-graphics/2.6.0/metricsgraphics.min.js"></script>
+
+  <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,300,700' rel='stylesheet' type='text/css'>
+  <link href='https://fonts.googleapis.com/css?family=PT+Serif:400,700,400italic' rel='stylesheet' type='text/css'>
+  <link href='https://netdna.bootstrapcdn.com/font-awesome/4.2.0/css/font-awesome.css' rel='stylesheet' type='text/css'>
+  <link href='https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css' rel='stylesheet' type='text/css'>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.10.6/moment.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/3.10.1/lodash.min.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.0/ace.js" charset="utf-8"></script>
+
+  <style>
+  body, p, li {
+    font-family: sans-serif;
+    font-size: 10pt;
+  }
+
+  h1 {
+    font-size: 18pt;
+    font-weight: bold;
+  }
+
+  #errorsContainer > p {
+    color: #009900;
+  }
+
+  #footer {
+    padding: 1em;
+    font-size: 0.8em;
+    color: #999;
+    text-align: center;
+    margin-top: 1em;
+    background-color: #eee;
+  }
+  #editor {
+    font-size: 8pt;
+    height: 20em;
+  }
+  </style>
+
+  <script>
+  window.Report = {
+  "aggregate": {
+    "timestamp": "2026-05-30T11:01:59.689Z",
+    "scenariosCreated": 3810,
+    "scenariosCompleted": 1092,
+    "requestsCompleted": 1953,
+    "latency": {
+      "min": 39,
+      "max": 5199,
+      "median": 108,
+      "p95": 5050,
+      "p99": 5109.9
+    },
+    "rps": {
+      "count": 3998,
+      "mean": 21.91
+    },
+    "scenarioDuration": {
+      "min": 82.1,
+      "max": 9903.2,
+      "median": 254.4,
+      "p95": 7486.1,
+      "p99": 8945.2
+    },
+    "scenarioCounts": {
+      "Browse flights (stress)": 1926,
+      "Login and book (stress)": 1884
+    },
+    "errors": {
+      "ECONNRESET": 66,
+      "ETIMEDOUT": 1979
+    },
+    "codes": {
+      "200": 1092,
+      "400": 188,
+      "401": 64,
+      "502": 71,
+      "503": 538
+    },
+    "matches": 0,
+    "customStats": {},
+    "counters": {},
+    "scenariosAvoided": 0,
+    "phases": [
+      {
+        "duration": 30,
+        "arrivalRate": 10,
+        "name": "Warm up"
+      },
+      {
+        "duration": 60,
+        "arrivalRate": 10,
+        "rampTo": 30,
+        "name": "Ramp to stress"
+      },
+      {
+        "duration": 60,
+        "arrivalRate": 30,
+        "name": "Peak stress"
+      },
+      {
+        "duration": 30,
+        "arrivalRate": 30,
+        "rampTo": 5,
+        "name": "Recovery"
+      }
+    ]
+  },
+  "intermediate": [
+    {
+      "timestamp": "2026-05-30T10:59:07.076Z",
+      "scenariosCreated": 99,
+      "scenariosCompleted": 76,
+      "requestsCompleted": 106,
+      "latency": {
+        "min": 44,
+        "max": 3107,
+        "median": 108.5,
+        "p95": 2331.8,
+        "p99": 3051.6
+      },
+      "rps": {
+        "count": 122,
+        "mean": 12.32
+      },
+      "scenarioDuration": {
+        "min": 83.5,
+        "max": 3291.3,
+        "median": 212.9,
+        "p95": 2867.9,
+        "p99": 3259.9
+      },
+      "scenarioCounts": {
+        "Browse flights (stress)": 54,
+        "Login and book (stress)": 45
+      },
+      "errors": {},
+      "codes": {
+        "200": 76,
+        "400": 23,
+        "401": 7
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 16,
+      "pendingRequests": 16,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T10:59:17.077Z",
+      "scenariosCreated": 100,
+      "scenariosCompleted": 71,
+      "requestsCompleted": 106,
+      "latency": {
+        "min": 42,
+        "max": 5133,
+        "median": 107.5,
+        "p95": 5061.2,
+        "p99": 5117.9
+      },
+      "rps": {
+        "count": 117,
+        "mean": 11.7
+      },
+      "scenarioDuration": {
+        "min": 82.1,
+        "max": 5242.1,
+        "median": 179.9,
+        "p95": 5138.5,
+        "p99": 5229.2
+      },
+      "scenarioCounts": {
+        "Login and book (stress)": 47,
+        "Browse flights (stress)": 53
+      },
+      "errors": {},
+      "codes": {
+        "200": 71,
+        "400": 17,
+        "401": 6,
+        "502": 12
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 27,
+      "pendingRequests": 27,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T10:59:27.069Z",
+      "scenariosCreated": 100,
+      "scenariosCompleted": 52,
+      "requestsCompleted": 129,
+      "latency": {
+        "min": 40,
+        "max": 5199,
+        "median": 108,
+        "p95": 5115.1,
+        "p99": 5156.3
+      },
+      "rps": {
+        "count": 104,
+        "mean": 10.41
+      },
+      "scenarioDuration": {
+        "min": 86.2,
+        "max": 5145,
+        "median": 158.3,
+        "p95": 5053.8,
+        "p99": 5144.9
+      },
+      "scenarioCounts": {
+        "Login and book (stress)": 52,
+        "Browse flights (stress)": 48
+      },
+      "errors": {},
+      "codes": {
+        "200": 52,
+        "400": 4,
+        "401": 3,
+        "502": 13,
+        "503": 57
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 2,
+      "pendingRequests": 2,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T10:59:37.076Z",
+      "scenariosCreated": 125,
+      "scenariosCompleted": 39,
+      "requestsCompleted": 91,
+      "latency": {
+        "min": 40,
+        "max": 930,
+        "median": 84,
+        "p95": 164,
+        "p99": 636.4
+      },
+      "rps": {
+        "count": 125,
+        "mean": 12.5
+      },
+      "scenarioDuration": {
+        "min": 85.9,
+        "max": 394.6,
+        "median": 200.4,
+        "p95": 362.1,
+        "p99": 394.6
+      },
+      "scenarioCounts": {
+        "Browse flights (stress)": 57,
+        "Login and book (stress)": 68
+      },
+      "errors": {},
+      "codes": {
+        "200": 39,
+        "503": 52
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 36,
+      "pendingRequests": 36,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T10:59:47.082Z",
+      "scenariosCreated": 149,
+      "scenariosCompleted": 23,
+      "requestsCompleted": 47,
+      "latency": {
+        "min": 2912,
+        "max": 4578,
+        "median": 4430,
+        "p95": 4570.4,
+        "p99": 4578
+      },
+      "rps": {
+        "count": 149,
+        "mean": 14.91
+      },
+      "scenarioDuration": {
+        "min": 4453.1,
+        "max": 8650.5,
+        "median": 8092.6,
+        "p95": 8618.9,
+        "p99": 8650.5
+      },
+      "scenarioCounts": {
+        "Browse flights (stress)": 77,
+        "Login and book (stress)": 72
+      },
+      "errors": {
+        "ECONNRESET": 5
+      },
+      "codes": {
+        "200": 23,
+        "503": 24
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 133,
+      "pendingRequests": 138,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T10:59:57.095Z",
+      "scenariosCreated": 179,
+      "scenariosCompleted": 141,
+      "requestsCompleted": 223,
+      "latency": {
+        "min": 44,
+        "max": 5106,
+        "median": 1053,
+        "p95": 4345,
+        "p99": 5097.5
+      },
+      "rps": {
+        "count": 193,
+        "mean": 19.36
+      },
+      "scenarioDuration": {
+        "min": 103.2,
+        "max": 6537.3,
+        "median": 2248.5,
+        "p95": 5980.6,
+        "p99": 6332.8
+      },
+      "scenarioCounts": {
+        "Browse flights (stress)": 90,
+        "Login and book (stress)": 89
+      },
+      "errors": {
+        "ECONNRESET": 61
+      },
+      "codes": {
+        "200": 141,
+        "400": 14,
+        "401": 15,
+        "502": 13,
+        "503": 40
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 42,
+      "pendingRequests": 108,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T11:00:07.099Z",
+      "scenariosCreated": 216,
+      "scenariosCompleted": 109,
+      "requestsCompleted": 253,
+      "latency": {
+        "min": 42,
+        "max": 5193,
+        "median": 121,
+        "p95": 5106.3,
+        "p99": 5147.8
+      },
+      "rps": {
+        "count": 217,
+        "mean": 21.74
+      },
+      "scenarioDuration": {
+        "min": 83.3,
+        "max": 4933.7,
+        "median": 184.4,
+        "p95": 359.3,
+        "p99": 2354.4
+      },
+      "scenarioCounts": {
+        "Login and book (stress)": 108,
+        "Browse flights (stress)": 108
+      },
+      "errors": {},
+      "codes": {
+        "200": 109,
+        "400": 1,
+        "401": 11,
+        "502": 33,
+        "503": 99
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 6,
+      "pendingRequests": 72,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T11:00:17.105Z",
+      "scenariosCreated": 243,
+      "scenariosCompleted": 114,
+      "requestsCompleted": 244,
+      "latency": {
+        "min": 39,
+        "max": 232,
+        "median": 63,
+        "p95": 153.3,
+        "p99": 175.9
+      },
+      "rps": {
+        "count": 243,
+        "mean": 24.35
+      },
+      "scenarioDuration": {
+        "min": 83,
+        "max": 358.3,
+        "median": 137.3,
+        "p95": 264.7,
+        "p99": 309.1
+      },
+      "scenarioCounts": {
+        "Login and book (stress)": 127,
+        "Browse flights (stress)": 116
+      },
+      "errors": {},
+      "codes": {
+        "200": 114,
+        "503": 130
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 5,
+      "pendingRequests": 71,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T11:00:27.105Z",
+      "scenariosCreated": 283,
+      "scenariosCompleted": 153,
+      "requestsCompleted": 284,
+      "latency": {
+        "min": 40,
+        "max": 516,
+        "median": 89.5,
+        "p95": 154,
+        "p99": 165.7
+      },
+      "rps": {
+        "count": 283,
+        "mean": 28.3
+      },
+      "scenarioDuration": {
+        "min": 82.4,
+        "max": 391.6,
+        "median": 167.2,
+        "p95": 318,
+        "p99": 370.3
+      },
+      "scenarioCounts": {
+        "Login and book (stress)": 132,
+        "Browse flights (stress)": 151
+      },
+      "errors": {},
+      "codes": {
+        "200": 153,
+        "503": 131
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 4,
+      "pendingRequests": 70,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T11:00:37.110Z",
+      "scenariosCreated": 299,
+      "scenariosCompleted": 11,
+      "requestsCompleted": 21,
+      "latency": {
+        "min": 47,
+        "max": 656,
+        "median": 112,
+        "p95": 601,
+        "p99": 656
+      },
+      "rps": {
+        "count": 303,
+        "mean": 30.33
+      },
+      "scenarioDuration": {
+        "min": 96.7,
+        "max": 8069.5,
+        "median": 688.2,
+        "p95": 8036.3,
+        "p99": 8069.5
+      },
+      "scenarioCounts": {
+        "Login and book (stress)": 151,
+        "Browse flights (stress)": 148
+      },
+      "errors": {
+        "ETIMEDOUT": 3
+      },
+      "codes": {
+        "200": 11,
+        "400": 4,
+        "401": 1,
+        "503": 5
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 283,
+      "pendingRequests": 352,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T11:00:47.109Z",
+      "scenariosCreated": 300,
+      "scenariosCompleted": 6,
+      "requestsCompleted": 9,
+      "latency": {
+        "min": 57,
+        "max": 346,
+        "median": 104,
+        "p95": 346,
+        "p99": 346
+      },
+      "rps": {
+        "count": 301,
+        "mean": 30.13
+      },
+      "scenarioDuration": {
+        "min": 473.2,
+        "max": 3794.9,
+        "median": 1492.6,
+        "p95": 3794.9,
+        "p99": 3794.9
+      },
+      "scenarioCounts": {
+        "Login and book (stress)": 154,
+        "Browse flights (stress)": 146
+      },
+      "errors": {
+        "ETIMEDOUT": 282
+      },
+      "codes": {
+        "200": 6,
+        "400": 1,
+        "401": 2
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 293,
+      "pendingRequests": 644,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T11:00:57.110Z",
+      "scenariosCreated": 300,
+      "scenariosCompleted": 26,
+      "requestsCompleted": 40,
+      "latency": {
+        "min": 51,
+        "max": 2250,
+        "median": 122,
+        "p95": 2110,
+        "p99": 2250
+      },
+      "rps": {
+        "count": 313,
+        "mean": 31.33
+      },
+      "scenarioDuration": {
+        "min": 96,
+        "max": 9297.6,
+        "median": 3474,
+        "p95": 9280.3,
+        "p99": 9297.6
+      },
+      "scenarioCounts": {
+        "Login and book (stress)": 156,
+        "Browse flights (stress)": 144
+      },
+      "errors": {
+        "ETIMEDOUT": 285
+      },
+      "codes": {
+        "200": 27,
+        "400": 12,
+        "401": 1
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 281,
+      "pendingRequests": 917,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T11:01:07.115Z",
+      "scenariosCreated": 300,
+      "scenariosCompleted": 19,
+      "requestsCompleted": 32,
+      "latency": {
+        "min": 42,
+        "max": 2476,
+        "median": 117,
+        "p95": 2300.5,
+        "p99": 2476
+      },
+      "rps": {
+        "count": 311,
+        "mean": 31.13
+      },
+      "scenarioDuration": {
+        "min": 87,
+        "max": 9748.2,
+        "median": 1354.8,
+        "p95": 9572.1,
+        "p99": 9748.2
+      },
+      "scenarioCounts": {
+        "Browse flights (stress)": 149,
+        "Login and book (stress)": 151
+      },
+      "errors": {
+        "ETIMEDOUT": 271
+      },
+      "codes": {
+        "200": 18,
+        "400": 12,
+        "401": 2
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 289,
+      "pendingRequests": 1196,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T11:01:17.114Z",
+      "scenariosCreated": 300,
+      "scenariosCompleted": 17,
+      "requestsCompleted": 29,
+      "latency": {
+        "min": 43,
+        "max": 1319,
+        "median": 136,
+        "p95": 1219.2,
+        "p99": 1319
+      },
+      "rps": {
+        "count": 311,
+        "mean": 31.13
+      },
+      "scenarioDuration": {
+        "min": 82.8,
+        "max": 8563.4,
+        "median": 1997.7,
+        "p95": 8345.8,
+        "p99": 8563.4
+      },
+      "scenarioCounts": {
+        "Login and book (stress)": 156,
+        "Browse flights (stress)": 144
+      },
+      "errors": {
+        "ETIMEDOUT": 285
+      },
+      "codes": {
+        "200": 17,
+        "400": 11,
+        "401": 1
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 286,
+      "pendingRequests": 1478,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T11:01:27.114Z",
+      "scenariosCreated": 300,
+      "scenariosCompleted": 44,
+      "requestsCompleted": 63,
+      "latency": {
+        "min": 44,
+        "max": 4464,
+        "median": 68,
+        "p95": 3197.5,
+        "p99": 4453.3
+      },
+      "rps": {
+        "count": 316,
+        "mean": 31.63
+      },
+      "scenarioDuration": {
+        "min": 85.5,
+        "max": 8741.9,
+        "median": 753,
+        "p95": 7378.8,
+        "p99": 8741.9
+      },
+      "scenarioCounts": {
+        "Login and book (stress)": 141,
+        "Browse flights (stress)": 159
+      },
+      "errors": {
+        "ETIMEDOUT": 281
+      },
+      "codes": {
+        "200": 45,
+        "400": 15,
+        "401": 3
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 258,
+      "pendingRequests": 1731,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T11:01:37.114Z",
+      "scenariosCreated": 270,
+      "scenariosCompleted": 41,
+      "requestsCompleted": 64,
+      "latency": {
+        "min": 46,
+        "max": 1370,
+        "median": 117.5,
+        "p95": 879.7,
+        "p99": 1306.3
+      },
+      "rps": {
+        "count": 287,
+        "mean": 28.73
+      },
+      "scenarioDuration": {
+        "min": 240.9,
+        "max": 8230.1,
+        "median": 3438.2,
+        "p95": 7891.4,
+        "p99": 8230.1
+      },
+      "scenarioCounts": {
+        "Browse flights (stress)": 136,
+        "Login and book (stress)": 134
+      },
+      "errors": {
+        "ETIMEDOUT": 246
+      },
+      "codes": {
+        "200": 40,
+        "400": 18,
+        "401": 6
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 235,
+      "pendingRequests": 1954,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T11:01:47.130Z",
+      "scenariosCreated": 174,
+      "scenariosCompleted": 59,
+      "requestsCompleted": 86,
+      "latency": {
+        "min": 44,
+        "max": 2535,
+        "median": 110.5,
+        "p95": 1784.8,
+        "p99": 2491.1
+      },
+      "rps": {
+        "count": 197,
+        "mean": 19.7
+      },
+      "scenarioDuration": {
+        "min": 85.4,
+        "max": 9226.7,
+        "median": 2990.4,
+        "p95": 8870.6,
+        "p99": 9225.1
+      },
+      "scenarioCounts": {
+        "Login and book (stress)": 75,
+        "Browse flights (stress)": 99
+      },
+      "errors": {
+        "ETIMEDOUT": 215
+      },
+      "codes": {
+        "200": 59,
+        "400": 23,
+        "401": 4
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 131,
+      "pendingRequests": 2065,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T11:01:57.133Z",
+      "scenariosCreated": 73,
+      "scenariosCompleted": 85,
+      "requestsCompleted": 113,
+      "latency": {
+        "min": 45,
+        "max": 3440,
+        "median": 92,
+        "p95": 2650.4,
+        "p99": 3329.1
+      },
+      "rps": {
+        "count": 100,
+        "mean": 10.01
+      },
+      "scenarioDuration": {
+        "min": 95.6,
+        "max": 9903.2,
+        "median": 1745.7,
+        "p95": 7977.5,
+        "p99": 9781.6
+      },
+      "scenarioCounts": {
+        "Login and book (stress)": 26,
+        "Browse flights (stress)": 47
+      },
+      "errors": {
+        "ETIMEDOUT": 101
+      },
+      "codes": {
+        "200": 85,
+        "400": 27,
+        "401": 1
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 17,
+      "pendingRequests": 2052,
+      "scenariosAvoided": 0
+    },
+    {
+      "timestamp": "2026-05-30T11:01:59.680Z",
+      "scenariosCreated": 0,
+      "scenariosCompleted": 6,
+      "requestsCompleted": 13,
+      "latency": {
+        "min": 46,
+        "max": 2666,
+        "median": 114,
+        "p95": 2599.3,
+        "p99": 2666
+      },
+      "rps": {
+        "count": 6,
+        "mean": 2.71
+      },
+      "scenarioDuration": {
+        "min": 1857.2,
+        "max": 2778.3,
+        "median": 2078.8,
+        "p95": 2778.3,
+        "p99": 2778.3
+      },
+      "scenarioCounts": {},
+      "errors": {
+        "ETIMEDOUT": 10
+      },
+      "codes": {
+        "200": 6,
+        "400": 6,
+        "401": 1
+      },
+      "matches": 0,
+      "customStats": {},
+      "counters": {},
+      "concurrency": 0,
+      "pendingRequests": 2045,
+      "scenariosAvoided": 0
+    }
+  ]
+};
+  </script>
+
+  <style>
+      h1 {
+        line-height: 200%;
+      }
+
+      body {
+          background-color: #fcfcfc;
+      }
+
+      .container {
+          width: 100%;
+          min-width: 960px;
+      }
+  </style>
+
+
+</head>
+<body>
+
+<div class="container">
+
+<div class="row" id="header">
+  <div class="col-lg-4 col-lg-offset-4">
+    <pre style="font-size: 5pt; background-color: #fcfcfc; border: none;">
+            _   _ _ _                                                _
+  __ _ _ __| |_(_) | | ___ _ __ _   _      _ __ ___ _ __   ___  _ __| |_
+ / _` | '__| __| | | |/ _ \ '__| | | |    | '__/ _ \ '_ \ / _ \| '__| __|
+| (_| | |  | |_| | | |  __/ |  | |_| |    | | |  __/ |_) | (_) | |  | |_
+ \__,_|_|   \__|_|_|_|\___|_|   \__, |    |_|  \___| .__/ \___/|_|   \__|
+                                |___/              |_|
+
+    </pre>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-12">
+    <h1 class="text-center" id="page-title">Test run on <span id="timestamp">date</span></h1>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-3">
+    <p><strong>Summary</strong></p>
+    <table class="table table-bordered table-hover table-condensed">
+      <tbody>
+        <tr>
+          <td>Test duration</td>
+          <td><span id="testDuration">0</span> sec</td>
+        </tr>
+        <tr>
+          <td>Scenarios created</td>
+          <td><span id="scenariosCreated">0</span></td>
+        </tr>
+
+        <tr>
+          <td>Scenarios completed</td>
+          <td><span id="scenariosCompleted">0</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="col-lg-5" id="scenarioCountsContainer">
+    <div>
+      <strong>Scenario counts:</strong>
+
+      <p></p>
+
+      <table class="table table-bordered table-hover table-condensed" id="scenarioCounts">
+      </table>
+    </div>
+  </div>
+
+  <div class="col-lg-1">
+    <div id="codesContainer">
+      <strong>Codes</strong>
+
+      <p></p>
+
+      <table class="table table-bordered table-hover table-condensed" id="codes">
+      </table>
+    </div>
+  </div>
+
+  <div class="col-lg-3">
+    <div id="errorsContainer">
+      <strong>Errors</strong>
+
+      <p></p>
+
+      <table class="table table-bordered table-hover table-condensed" id="errors">
+      </table>
+    </div>
+  </div>
+</div> <!-- /.row -->
+
+<div class="row">
+  <div class="text-center col-lg-12">
+    <h2>Charts</h2>
+  </div>
+</div>
+
+<div class="row">
+  <div class="latency-histogram text-center col-lg-12"></div>
+</div>
+
+<div class="row">
+  <div class="latency text-center col-lg-12"></div>
+</div>
+
+<div class="latency-legend"></div>
+
+<div class="row">
+
+</div>
+
+<div class="row">
+  <div class="concurrency text-center col-lg-12"></div>
+</div>
+
+<div class="row">
+  <div class="rps-mean text-center col-lg-12"></div>
+</div>
+<div class="row">
+  <div class="rps-count text-center col-lg-12"></div>
+</div>
+
+<div class="row">
+  <div class="codes-line text-center col-lg-12"></div>
+</div>
+<div class="row">
+  <div class="errors-line text-center col-lg-12"></div>
+</div>
+
+
+  
+
+
+</div>
+
+<div class="row">
+  <div class="col-lg-8 col-lg-offset-2">
+    <h3 class="text-center">Raw report data</h3>
+    <p>This is the raw JSON stats output that the report was generated from.</p>
+    <div id="editor">
+    </div>
+  </div>
+</div>
+
+<script>
+var editor = ace.edit("editor");
+editor.getSession().setMode("ace/mode/javascript");
+editor.setValue(JSON.stringify(Report, null, 2));
+editor.gotoLine(1);editor.setHighlightActiveLine(false);
+
+var l = _;
+
+$('#timestamp').html(moment(Report.aggregate.timestamp).format('DD MMM YYYY HH:mm:SS'));
+$('#testDuration').html(l.size(Report.intermediate) * 10);
+$('#scenariosCompleted').html(Report.aggregate.scenariosCompleted);
+$('#scenariosCreated').html(Report.aggregate.scenariosCreated);
+
+var markers = [];
+if(l.size(Report.phases) > 0) {
+  markers = l.foldl(Report.phases, function(acc, phase, index) {
+    var label = phase.name || 'Phase ' + (index + 1);
+    var timestamp = (index === 0) ? 0 : Report.phases[index - 1].duration + acc[index - 1].timestamp;
+
+    acc.push({
+      timestamp: timestamp,
+      label: label
+    });
+
+    return acc;
+  }, []);
+}
+
+if (l.size(Report.aggregate.scenarioCounts) > 0) {
+  l.each(Report.aggregate.scenarioCounts, function(count, name) {
+    var $tdName = $('<td>' + name + '</td>');
+    var percentage = Math.round(count / Report.aggregate.scenariosCreated * 100 * 1000) / 1000;
+    var $tdCount = $('<td>' + count + ' (' + percentage + '%)' + '</td>');
+    var $el = $('<tr></tr>')
+      .append($tdName)
+      .append($tdCount)
+      .appendTo($('#scenarioCounts'));
+  });
+} else {
+  $('#scenarioCountsContainer').hide();
+}
+
+if (l.size(Report.aggregate.codes) > 0) {
+  l.each(Report.aggregate.codes, function(count, code) {
+    var anchor = '';
+    if (code >= 100 && code < 200) {
+      anchor = '#1xx_Informational';
+    } else if (code >= 200 && code < 300) {
+      anchor = '#2xx_Success';
+    } else if (code >= 300 && code < 400) {
+      anchor = '#3xx_Redirection';
+    } else if (code >= 400 && code < 500) {
+      anchor = '#4xx_Client_Error';
+    } else if (code >= 500 && code < 600) {
+      anchor = '#5xx_Server_Error';
+    }
+
+    var $a = $('<a>' + code + '</a>').attr('href', 'https://en.wikipedia.org/wiki/List_of_HTTP_status_codes' + anchor);
+    var $td = $('<td></td>').append($a);
+    var $el = $('<tr></tr>')
+      .append($td)
+      .append($('<td>' + count + '</td>'))
+      .appendTo($('#codes'));
+  });
+} else {
+  $('#codesContainer').hide();
+}
+
+if (l.size(Report.aggregate.errors) > 0) {
+  l.each(Report.aggregate.errors, function(count, code) {
+    var $el = $('<tr></tr>')
+      .append($('<td>' + code + '</td>'))
+      .append($('<td>' + count + '</td>'))
+      .appendTo($('#errors'));
+  });
+} else {
+  $('#errorsContainer > p').html('&#10004; Test completed without network or OS errors.');
+}
+
+var histogramData = l.map(Report.aggregate.latency, function(v, k) { return {bin: k, value: v} });
+
+MG.data_graphic({
+  chart_type: 'bar',
+  x_label: 'Percentile',
+  y_label: '(ms)',
+  animate_on_load: true,
+  title: 'Overall Latency Distribution',
+  description: 'Distribution of all observed response latencies',
+  target: '.latency-histogram',
+  data: histogramData,
+  x_accessor: 'bin',
+  y_accessor: 'value',
+  binned: true,
+  height: 250,
+  interpolate: 'monotone',
+  padding_percentage: 0,
+  bar_orientation: 'vertical',
+  width: 450
+});
+
+var chartData = l.map(
+  window.Report.intermediate,
+  function(o,i) {
+    return {
+      timestamp: i*10+10,
+
+      rpsMean: o.rps.mean,
+      rpsCount: o.rps.count,
+      concurrency: o.concurrency,
+      latencyMax: o.latency.max,
+      latencyp99: o.latency.p99,
+      latencyp95: o.latency.p95,
+      latencyMedian: o.latency.median,
+      latencyMin: o.latency.min
+    }
+  });
+
+//
+// Response codes
+//
+
+if (l.size(Report.aggregate.codes) > 0) {
+  var codesData = l.foldl(Report.intermediate, function(acc, o, i) {
+    var res = {};
+    res.timestamp = i*10+10;
+    l.each(o.codes, function(count, code) {
+      res[code] = count;
+    });
+    acc.push(res);
+    return acc;
+  }, []);
+  var uniqueCodes = l.foldl(Report.intermediate, function(acc, o) {
+    l.each(o.codes, function(count, code) {
+      if (l.indexOf(acc, code) === -1) {
+        acc.push(code);
+      }
+    });
+    return acc;
+  }, []);
+
+  MG.data_graphic({
+    x_label: 'Time',
+    y_label: 'Count',
+    title: 'HTTP codes',
+    description: 'Occurence of HTTP response codes',
+    target: '.codes-line',
+    data: codesData,
+    x_accessor: 'timestamp',
+    y_accessor: uniqueCodes,
+    legend: uniqueCodes,
+    right: 50,
+    chart_type: 'line',
+    area: false,
+    markers: markers,
+    width: 900
+  });
+}
+
+//
+// Errors
+//
+
+if (l.size(Report.aggregate.errors) > 0) {
+  var errorData = l.foldl(Report.intermediate, function(acc, o, i) {
+    var res = {};
+    res.timestamp = i*10+10;
+    l.each(o.errors, function(count, name) {
+      res[name] = count;
+    });
+    acc.push(res);
+    return acc;
+  }, []);
+  var uniqueErrors = l.foldl(Report.intermediate, function(acc, o) {
+    l.each(o.errors, function(count, name) {
+      if (l.indexOf(acc, name) === -1) {
+        acc.push(name);
+      }
+    });
+    return acc;
+  }, []);
+
+  MG.data_graphic({
+    title: 'Error Codes',
+    description: 'Occurence of error codes',
+    target: '.errors-line',
+    data: errorData,
+    x_accessor: 'timestamp',
+    y_accessor: uniqueErrors,
+    chart_type: 'line',
+    area: false,
+    markers: markers
+  });
+
+}
+
+//
+// Latency
+//
+MG.data_graphic({
+  chart_type: 'line',
+  x_label: 'Time',
+  y_label: '(ms)',
+  animate_on_load: true,
+  area: false,
+  title: "Latency At Intervals",
+  description: "Latency values at different points during the test run",
+  data: chartData,
+  target: '.latency',
+  width: 900,
+  x_accessor: 'timestamp',
+  y_accessor: ['latencyMin', 'latencyMedian', 'latencyp95', 'latencyMax'],
+  legend: ['min', 'p50', 'p95', 'max'],
+  //legend_target: '.latency-legend',
+  right: 50,
+  interpolate: 'monotone',
+  mouseover: function(d, i) {
+  },
+  markers: markers
+        });
+
+            MG.data_graphic({
+            animate_on_load: true,
+            area: false,
+            y_label: 'Count',
+            x_label: 'Time',
+            title: 'Concurrent users',
+            description: 'Concurrent users',
+            data: chartData,
+            target: '.concurrency',
+            x_accessor: 'timestamp',
+            y_accessor: ['concurrency'],
+            interpolate: 'monotone',
+            markers: markers,
+            width: 900
+            });
+
+MG.data_graphic({
+  animate_on_load: true,
+  area: false,
+  y_label: 'Count',
+  x_label: 'Time',
+  title: 'Mean RPS',
+  description: 'Mean requests per second',
+  data: chartData,
+  target: '.rps-mean',
+  x_accessor: 'timestamp',
+  y_accessor: ['rpsMean'],
+  interpolate: 'monotone',
+  markers: markers,
+  width: 900
+});
+
+MG.data_graphic({
+  animate_on_load: true,
+  area: false,
+  y_label: 'Count',
+  x_label: 'Time',
+  title: 'RPS Count',
+  description: 'Count of requests per second',
+  data: chartData,
+  target: '.rps-count',
+  x_accessor: 'timestamp',
+  y_accessor: ['rpsCount'],
+  interpolate: 'monotone',
+  markers: markers,
+  width: 900
+});
+</script>
+<div id="footer">
+  <footer>This report was created with <a href="https://artillery.io">Artillery</a> - free open-source load-testing for HTTP and WebSockets</footer>
+</div>
+</body>
+</html>

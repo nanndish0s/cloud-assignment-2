@@ -1,0 +1,115 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AeroLink - IAM roles for ECS execution, ECS tasks, and Lambda
+
+Resources:
+
+  # ── ECS Execution Role ─────────────────────────────────────────────────────
+  # Used by ECS to pull images from ECR, write CloudWatch logs,
+  # and fetch secrets from Secrets Manager before container start.
+  EcsExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: aerolink-ecs-execution-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: aerolink-secrets-access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:aerolink/*
+
+  # ── ECS Task Role ──────────────────────────────────────────────────────────
+  # Used by running containers to call AWS APIs (DynamoDB, SQS, X-Ray).
+  EcsTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: aerolink-ecs-task-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: aerolink-task-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:GetQueueUrl
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                Resource: '*'
+
+  # ── Lambda Execution Role ──────────────────────────────────────────────────
+  # Used by the notification Lambda to read SQS and send email via SES.
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: aerolink-lambda-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: aerolink-lambda-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: '*'
+
+Outputs:
+  EcsExecutionRoleArn:
+    Value: !GetAtt EcsExecutionRole.Arn
+    Export:
+      Name: AeroLink-EcsExecutionRoleArn
+
+  EcsTaskRoleArn:
+    Value: !GetAtt EcsTaskRole.Arn
+    Export:
+      Name: AeroLink-EcsTaskRoleArn
+
+  LambdaRoleArn:
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: AeroLink-LambdaRoleArn

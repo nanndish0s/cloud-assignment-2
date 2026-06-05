@@ -30,7 +30,7 @@ if (process.env.ENABLE_XRAY === 'true') {
 const PORT = process.env.GATEWAY_PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'aerolink_secret_key';
 
-// ── Swagger / OpenAPI ───────────────────────────────────────────────────────
+// Swagger / OpenAPI
 const swaggerOptions = {
   swaggerDefinition: {
     openapi: '3.0.0',
@@ -74,7 +74,7 @@ axiosRetry(axios, {
   },
 });
 
-// ── Circuit Breakers ────────────────────────────────────────────────────────
+// Circuit Breakers
 const breakerOptions = {
   timeout: 5000,
   errorThresholdPercentage: 50,
@@ -126,7 +126,7 @@ const proxyVia = (breakerName, targetUrl) => async (req, res) => {
   }
 };
 
-// ── Auth Middleware ─────────────────────────────────────────────────────────
+// Auth Middleware
 const authenticate = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -154,7 +154,7 @@ const SERVICES = {
   baggage:  process.env.BAGGAGE_SERVICE_URL || 'http://localhost:3004',
 };
 
-// ── Routes ──────────────────────────────────────────────────────────────────
+// Routes
 
 /**
  * @swagger

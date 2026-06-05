@@ -1,0 +1,110 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AeroLink - Security Groups (uses default VPC)
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: Default VPC ID
+  MyIp:
+    Type: String
+    Description: Your local machine IP for RDS access (x.x.x.x/32)
+
+Resources:
+
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: aerolink-alb-sg
+      GroupDescription: AeroLink ALB - public HTTP on ports 80 and 3000
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  ServicesSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: aerolink-services-sg
+      GroupDescription: AeroLink ECS Services - allow from ALB and from each other
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  ServicesFromAlbIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ServicesSecurityGroup
+      IpProtocol: -1
+      SourceSecurityGroupId: !Ref AlbSecurityGroup
+
+  ServicesFromSelfIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ServicesSecurityGroup
+      IpProtocol: -1
+      SourceSecurityGroupId: !Ref ServicesSecurityGroup
+
+  RdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: aerolink-rds-sg
+      GroupDescription: AeroLink RDS - allow from ECS services and local machine
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref ServicesSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: !Ref MyIp
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  KafkaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: aerolink-kafka-sg
+      GroupDescription: AeroLink Kafka EC2 - allow port 9092 from ECS services
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 9092
+          ToPort: 9092
+          SourceSecurityGroupId: !Ref ServicesSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+Outputs:
+  AlbSgId:
+    Value: !Ref AlbSecurityGroup
+    Export:
+      Name: AeroLink-AlbSgId
+
+  ServicesSgId:
+    Value: !Ref ServicesSecurityGroup
+    Export:
+      Name: AeroLink-ServicesSgId
+
+  RdsSgId:
+    Value: !Ref RdsSecurityGroup
+    Export:
+      Name: AeroLink-RdsSgId
+
+  KafkaSgId:
+    Value: !Ref KafkaSecurityGroup
+    Export:
+      Name: AeroLink-KafkaSgId

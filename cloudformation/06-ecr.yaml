@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AeroLink - ECR repositories for all 6 container images
+
+Resources:
+
+  AuthServiceRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: aerolink-auth-service
+      ImageScanningConfiguration:
+        ScanOnPush: true
+
+  FlightServiceRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: aerolink-flight-service
+      ImageScanningConfiguration:
+        ScanOnPush: true
+
+  BookingServiceRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: aerolink-booking-service
+      ImageScanningConfiguration:
+        ScanOnPush: true
+
+  BaggageServiceRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: aerolink-baggage-service
+      ImageScanningConfiguration:
+        ScanOnPush: true
+
+  ApiGatewayRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: aerolink-api-gateway
+      ImageScanningConfiguration:
+        ScanOnPush: true
+
+  FrontendRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: aerolink-frontend
+      ImageScanningConfiguration:
+        ScanOnPush: true
+
+Outputs:
+  AuthServiceRepoUri:
+    Value: !GetAtt AuthServiceRepo.RepositoryUri
+    Export:
+      Name: AeroLink-AuthServiceRepoUri
+
+  FlightServiceRepoUri:
+    Value: !GetAtt FlightServiceRepo.RepositoryUri
+    Export:
+      Name: AeroLink-FlightServiceRepoUri
+
+  BookingServiceRepoUri:
+    Value: !GetAtt BookingServiceRepo.RepositoryUri
+    Export:
+      Name: AeroLink-BookingServiceRepoUri
+
+  BaggageServiceRepoUri:
+    Value: !GetAtt BaggageServiceRepo.RepositoryUri
+    Export:
+      Name: AeroLink-BaggageServiceRepoUri
+
+  ApiGatewayRepoUri:
+    Value: !GetAtt ApiGatewayRepo.RepositoryUri
+    Export:
+      Name: AeroLink-ApiGatewayRepoUri
+
+  FrontendRepoUri:
+    Value: !GetAtt FrontendRepo.RepositoryUri
+    Export:
+      Name: AeroLink-FrontendRepoUri

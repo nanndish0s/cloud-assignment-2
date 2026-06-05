@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AeroLink - RDS PostgreSQL, DynamoDB, and SQS
+
+Parameters:
+  DbPassword:
+    Type: String
+    NoEcho: true
+  DbUser:
+    Type: String
+    Default: aerouser
+
+Resources:
+
+  # ── RDS PostgreSQL ─────────────────────────────────────────────────────────
+  RdsInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    Properties:
+      DBInstanceIdentifier: aerolink-postgres
+      DBInstanceClass: db.t3.micro
+      Engine: postgres
+      EngineVersion: '14'
+      MasterUsername: !Ref DbUser
+      MasterUserPassword: !Ref DbPassword
+      DBName: aerolink
+      AllocatedStorage: '20'
+      StorageType: gp2
+      MultiAZ: false
+      PubliclyAccessible: true
+      VPCSecurityGroups:
+        - Fn::ImportValue: AeroLink-RdsSgId
+      BackupRetentionPeriod: 1
+      DeletionProtection: false
+
+  # ── DynamoDB ───────────────────────────────────────────────────────────────
+  BaggageTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: BaggageStatus
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: BaggageId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: BaggageId
+          KeyType: HASH
+
+  # ── SQS Queue ──────────────────────────────────────────────────────────────
+  BookingNotificationsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: aerolink-booking-notifications
+      VisibilityTimeout: 60
+      MessageRetentionPeriod: 86400
+
+Outputs:
+  RdsEndpoint:
+    Value: !GetAtt RdsInstance.Endpoint.Address
+    Export:
+      Name: AeroLink-RdsEndpoint
+
+  SqsQueueUrl:
+    Value: !Ref BookingNotificationsQueue
+    Export:
+      Name: AeroLink-SqsQueueUrl
+
+  SqsQueueArn:
+    Value: !GetAtt BookingNotificationsQueue.Arn
+    Export:
+      Name: AeroLink-SqsQueueArn

@@ -1,0 +1,700 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AeroLink - ECS cluster, ALB, Cloud Map, CloudWatch log groups, task definitions, and services
+
+Parameters:
+  Subnet1Id:
+    Type: AWS::EC2::Subnet::Id
+  Subnet2Id:
+    Type: AWS::EC2::Subnet::Id
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  AlbDnsName:
+    Type: String
+    Default: ''
+    Description: Leave blank on first deploy - filled after ALB is created
+  AdminEmail:
+    Type: String
+    Default: admin@aerolink.com
+  SesSender:
+    Type: String
+    Description: Verified SES sender email address
+
+Resources:
+
+  # ── CloudWatch Log Groups ──────────────────────────────────────────────────
+  AuthLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/aerolink/auth-service
+      RetentionInDays: 7
+
+  FlightLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/aerolink/flight-service
+      RetentionInDays: 7
+
+  BookingLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/aerolink/booking-service
+      RetentionInDays: 7
+
+  BaggageLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/aerolink/baggage-service
+      RetentionInDays: 7
+
+  GatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/aerolink/api-gateway
+      RetentionInDays: 7
+
+  FrontendLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/aerolink/frontend
+      RetentionInDays: 7
+
+  XrayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/aerolink/xray-daemon
+      RetentionInDays: 7
+
+  # ── ECS Cluster ────────────────────────────────────────────────────────────
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: aerolink-cluster
+
+  # ── AWS Cloud Map (Service Discovery) ─────────────────────────────────────
+  CloudMapNamespace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties:
+      Name: aerolink.local
+      Vpc: !Ref VpcId
+      Description: AeroLink internal service discovery
+
+  AuthServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: auth-service
+      NamespaceId: !Ref CloudMapNamespace
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+
+  FlightServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: flight-service
+      NamespaceId: !Ref CloudMapNamespace
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+
+  BookingServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: booking-service
+      NamespaceId: !Ref CloudMapNamespace
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+
+  BaggageServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: baggage-service
+      NamespaceId: !Ref CloudMapNamespace
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 10
+
+  # ── Application Load Balancer ──────────────────────────────────────────────
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: aerolink-alb
+      Scheme: internet-facing
+      Type: application
+      Subnets:
+        - !Ref Subnet1Id
+        - !Ref Subnet2Id
+      SecurityGroups:
+        - Fn::ImportValue: AeroLink-AlbSgId
+
+  FrontendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: aerolink-frontend-tg
+      Protocol: HTTP
+      Port: 80
+      VpcId: !Ref VpcId
+      TargetType: ip
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  GatewayTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: aerolink-gateway-tg
+      Protocol: HTTP
+      Port: 3000
+      VpcId: !Ref VpcId
+      TargetType: ip
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  FrontendListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref FrontendTargetGroup
+
+  GatewayListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      Protocol: HTTP
+      Port: 3000
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref GatewayTargetGroup
+
+  # ── Task Definitions ───────────────────────────────────────────────────────
+
+  AuthTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: aerolink-auth-service
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn:
+        Fn::ImportValue: AeroLink-EcsExecutionRoleArn
+      TaskRoleArn:
+        Fn::ImportValue: AeroLink-EcsTaskRoleArn
+      ContainerDefinitions:
+        - Name: auth-service
+          Image:
+            Fn::Sub:
+              - '${RepoUri}:latest'
+              - RepoUri:
+                  Fn::ImportValue: AeroLink-AuthServiceRepoUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3001
+              Protocol: tcp
+          Environment:
+            - Name: PORT
+              Value: '3001'
+            - Name: DB_HOST
+              Value:
+                Fn::ImportValue: AeroLink-RdsEndpoint
+            - Name: DB_PORT
+              Value: '5432'
+            - Name: DB_NAME
+              Value: aerolink
+            - Name: ADMIN_EMAIL
+              Value: !Ref AdminEmail
+            - Name: ENABLE_XRAY
+              Value: 'true'
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          Secrets:
+            - Name: DB_USER
+              ValueFrom:
+                Fn::ImportValue: AeroLink-DbUserSecretArn
+            - Name: DB_PASSWORD
+              ValueFrom:
+                Fn::ImportValue: AeroLink-DbPasswordSecretArn
+            - Name: JWT_SECRET
+              ValueFrom:
+                Fn::ImportValue: AeroLink-JwtSecretArn
+            - Name: ADMIN_PASSWORD
+              ValueFrom:
+                Fn::ImportValue: AeroLink-AdminPasswordSecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/aerolink/auth-service
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+        - Name: xray-daemon
+          Image: public.ecr.aws/xray/aws-xray-daemon:latest
+          Essential: false
+          MemoryReservation: 64
+          PortMappings:
+            - ContainerPort: 2000
+              Protocol: udp
+          Environment:
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/aerolink/xray-daemon
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: auth-service
+
+  FlightTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: aerolink-flight-service
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn:
+        Fn::ImportValue: AeroLink-EcsExecutionRoleArn
+      TaskRoleArn:
+        Fn::ImportValue: AeroLink-EcsTaskRoleArn
+      ContainerDefinitions:
+        - Name: flight-service
+          Image:
+            Fn::Sub:
+              - '${RepoUri}:latest'
+              - RepoUri:
+                  Fn::ImportValue: AeroLink-FlightServiceRepoUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3002
+              Protocol: tcp
+          Environment:
+            - Name: PORT
+              Value: '3002'
+            - Name: DB_HOST
+              Value:
+                Fn::ImportValue: AeroLink-RdsEndpoint
+            - Name: DB_PORT
+              Value: '5432'
+            - Name: DB_NAME
+              Value: aerolink
+            - Name: KAFKA_BROKER
+              Value:
+                Fn::ImportValue: AeroLink-KafkaBroker
+            - Name: ENABLE_XRAY
+              Value: 'true'
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          Secrets:
+            - Name: DB_USER
+              ValueFrom:
+                Fn::ImportValue: AeroLink-DbUserSecretArn
+            - Name: DB_PASSWORD
+              ValueFrom:
+                Fn::ImportValue: AeroLink-DbPasswordSecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/aerolink/flight-service
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+        - Name: xray-daemon
+          Image: public.ecr.aws/xray/aws-xray-daemon:latest
+          Essential: false
+          MemoryReservation: 64
+          PortMappings:
+            - ContainerPort: 2000
+              Protocol: udp
+          Environment:
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/aerolink/xray-daemon
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: flight-service
+
+  BookingTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: aerolink-booking-service
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn:
+        Fn::ImportValue: AeroLink-EcsExecutionRoleArn
+      TaskRoleArn:
+        Fn::ImportValue: AeroLink-EcsTaskRoleArn
+      ContainerDefinitions:
+        - Name: booking-service
+          Image:
+            Fn::Sub:
+              - '${RepoUri}:latest'
+              - RepoUri:
+                  Fn::ImportValue: AeroLink-BookingServiceRepoUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3003
+              Protocol: tcp
+          Environment:
+            - Name: PORT
+              Value: '3003'
+            - Name: DB_HOST
+              Value:
+                Fn::ImportValue: AeroLink-RdsEndpoint
+            - Name: DB_PORT
+              Value: '5432'
+            - Name: DB_NAME
+              Value: aerolink
+            - Name: KAFKA_BROKER
+              Value:
+                Fn::ImportValue: AeroLink-KafkaBroker
+            - Name: FLIGHT_SERVICE_URL
+              Value: http://flight-service.aerolink.local:3002
+            - Name: BOOKING_SQS_URL
+              Value:
+                Fn::ImportValue: AeroLink-SqsQueueUrl
+            - Name: ENABLE_XRAY
+              Value: 'true'
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          Secrets:
+            - Name: DB_USER
+              ValueFrom:
+                Fn::ImportValue: AeroLink-DbUserSecretArn
+            - Name: DB_PASSWORD
+              ValueFrom:
+                Fn::ImportValue: AeroLink-DbPasswordSecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/aerolink/booking-service
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+        - Name: xray-daemon
+          Image: public.ecr.aws/xray/aws-xray-daemon:latest
+          Essential: false
+          MemoryReservation: 64
+          PortMappings:
+            - ContainerPort: 2000
+              Protocol: udp
+          Environment:
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/aerolink/xray-daemon
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: booking-service
+
+  BaggageTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: aerolink-baggage-service
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn:
+        Fn::ImportValue: AeroLink-EcsExecutionRoleArn
+      TaskRoleArn:
+        Fn::ImportValue: AeroLink-EcsTaskRoleArn
+      ContainerDefinitions:
+        - Name: baggage-service
+          Image:
+            Fn::Sub:
+              - '${RepoUri}:latest'
+              - RepoUri:
+                  Fn::ImportValue: AeroLink-BaggageServiceRepoUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3004
+              Protocol: tcp
+          Environment:
+            - Name: PORT
+              Value: '3004'
+            - Name: KAFKA_BROKER
+              Value:
+                Fn::ImportValue: AeroLink-KafkaBroker
+            - Name: ENABLE_XRAY
+              Value: 'true'
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/aerolink/baggage-service
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+        - Name: xray-daemon
+          Image: public.ecr.aws/xray/aws-xray-daemon:latest
+          Essential: false
+          MemoryReservation: 64
+          PortMappings:
+            - ContainerPort: 2000
+              Protocol: udp
+          Environment:
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/aerolink/xray-daemon
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: baggage-service
+
+  GatewayTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: aerolink-api-gateway
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn:
+        Fn::ImportValue: AeroLink-EcsExecutionRoleArn
+      TaskRoleArn:
+        Fn::ImportValue: AeroLink-EcsTaskRoleArn
+      ContainerDefinitions:
+        - Name: api-gateway
+          Image:
+            Fn::Sub:
+              - '${RepoUri}:latest'
+              - RepoUri:
+                  Fn::ImportValue: AeroLink-ApiGatewayRepoUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3000
+              Protocol: tcp
+          Environment:
+            - Name: GATEWAY_PORT
+              Value: '3000'
+            - Name: AUTH_SERVICE_URL
+              Value: http://auth-service.aerolink.local:3001
+            - Name: FLIGHT_SERVICE_URL
+              Value: http://flight-service.aerolink.local:3002
+            - Name: BOOKING_SERVICE_URL
+              Value: http://booking-service.aerolink.local:3003
+            - Name: BAGGAGE_SERVICE_URL
+              Value: http://baggage-service.aerolink.local:3004
+            - Name: SWAGGER_SERVER_URL
+              Value: !Sub 'http://${Alb.DNSName}:3000'
+            - Name: ENABLE_XRAY
+              Value: 'true'
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          Secrets:
+            - Name: JWT_SECRET
+              ValueFrom:
+                Fn::ImportValue: AeroLink-JwtSecretArn
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/aerolink/api-gateway
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+        - Name: xray-daemon
+          Image: public.ecr.aws/xray/aws-xray-daemon:latest
+          Essential: false
+          MemoryReservation: 64
+          PortMappings:
+            - ContainerPort: 2000
+              Protocol: udp
+          Environment:
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/aerolink/xray-daemon
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: api-gateway
+
+  FrontendTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: aerolink-frontend
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn:
+        Fn::ImportValue: AeroLink-EcsExecutionRoleArn
+      TaskRoleArn:
+        Fn::ImportValue: AeroLink-EcsTaskRoleArn
+      ContainerDefinitions:
+        - Name: frontend
+          Image:
+            Fn::Sub:
+              - '${RepoUri}:latest'
+              - RepoUri:
+                  Fn::ImportValue: AeroLink-FrontendRepoUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 80
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: /ecs/aerolink/frontend
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  # ── ECS Services ───────────────────────────────────────────────────────────
+
+  AuthService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: auth-service
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref AuthTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !Ref Subnet1Id
+            - !Ref Subnet2Id
+          SecurityGroups:
+            - Fn::ImportValue: AeroLink-ServicesSgId
+          AssignPublicIp: ENABLED
+      ServiceRegistries:
+        - RegistryArn: !GetAtt AuthServiceDiscovery.Arn
+
+  FlightService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: flight-service
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref FlightTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !Ref Subnet1Id
+            - !Ref Subnet2Id
+          SecurityGroups:
+            - Fn::ImportValue: AeroLink-ServicesSgId
+          AssignPublicIp: ENABLED
+      ServiceRegistries:
+        - RegistryArn: !GetAtt FlightServiceDiscovery.Arn
+
+  BookingService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: booking-service
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref BookingTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !Ref Subnet1Id
+            - !Ref Subnet2Id
+          SecurityGroups:
+            - Fn::ImportValue: AeroLink-ServicesSgId
+          AssignPublicIp: ENABLED
+      ServiceRegistries:
+        - RegistryArn: !GetAtt BookingServiceDiscovery.Arn
+
+  BaggageService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: baggage-service
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref BaggageTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !Ref Subnet1Id
+            - !Ref Subnet2Id
+          SecurityGroups:
+            - Fn::ImportValue: AeroLink-ServicesSgId
+          AssignPublicIp: ENABLED
+      ServiceRegistries:
+        - RegistryArn: !GetAtt BaggageServiceDiscovery.Arn
+
+  ApiGatewayService:
+    Type: AWS::ECS::Service
+    DependsOn: GatewayListener
+    Properties:
+      ServiceName: api-gateway
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref GatewayTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !Ref Subnet1Id
+            - !Ref Subnet2Id
+          SecurityGroups:
+            - Fn::ImportValue: AeroLink-ServicesSgId
+          AssignPublicIp: ENABLED
+      LoadBalancers:
+        - ContainerName: api-gateway
+          ContainerPort: 3000
+          TargetGroupArn: !Ref GatewayTargetGroup
+
+  FrontendService:
+    Type: AWS::ECS::Service
+    DependsOn: FrontendListener
+    Properties:
+      ServiceName: frontend
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref FrontendTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets:
+            - !Ref Subnet1Id
+            - !Ref Subnet2Id
+          SecurityGroups:
+            - Fn::ImportValue: AeroLink-ServicesSgId
+          AssignPublicIp: ENABLED
+      LoadBalancers:
+        - ContainerName: frontend
+          ContainerPort: 80
+          TargetGroupArn: !Ref FrontendTargetGroup
+
+Outputs:
+  AlbDns:
+    Value: !GetAtt Alb.DNSName
+    Export:
+      Name: AeroLink-AlbDns
+
+  FrontendUrl:
+    Value: !Sub 'http://${Alb.DNSName}'
+
+  ApiGatewayUrl:
+    Value: !Sub 'http://${Alb.DNSName}:3000'
+
+  SwaggerUrl:
+    Value: !Sub 'http://${Alb.DNSName}:3000/api-docs'
+
+  GatewayTargetGroupArn:
+    Value: !Ref GatewayTargetGroup
+    Export:
+      Name: AeroLink-GatewayTargetGroupArn
+
+  AlbArn:
+    Value: !Ref Alb
+    Export:
+      Name: AeroLink-AlbArn

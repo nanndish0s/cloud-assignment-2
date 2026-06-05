@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AeroLink - ECS Auto Scaling for api-gateway (ALB request count) and booking-service (CPU)
+
+Resources:
+
+  # ── api-gateway: ALB request count target tracking ─────────────────────────
+  GatewayScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      ServiceNamespace: ecs
+      ResourceId: service/aerolink-cluster/api-gateway
+      ScalableDimension: ecs:service:DesiredCount
+      MinCapacity: 1
+      MaxCapacity: 5
+      RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
+
+  GatewayScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: aerolink-gw-request-count
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref GatewayScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 50.0
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ALBRequestCountPerTarget
+          ResourceLabel: !Sub
+            - '${AlbSuffix}/${TgSuffix}'
+            - AlbSuffix:
+                Fn::Select:
+                  - 1
+                  - Fn::Split:
+                      - 'loadbalancer/'
+                      - Fn::ImportValue: AeroLink-AlbArn
+              TgSuffix:
+                Fn::Select:
+                  - 1
+                  - Fn::Split:
+                      - ':targetgroup/'
+                      - Fn::Sub:
+                          - 'prefix:targetgroup/${Suffix}'
+                          - Suffix:
+                              Fn::Select:
+                                - 5
+                                - Fn::Split:
+                                    - ':'
+                                    - Fn::ImportValue: AeroLink-GatewayTargetGroupArn
+        ScaleOutCooldown: 30
+        ScaleInCooldown: 120
+        DisableScaleIn: false
+
+  # ── booking-service: CPU utilisation target tracking ───────────────────────
+  BookingScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      ServiceNamespace: ecs
+      ResourceId: service/aerolink-cluster/booking-service
+      ScalableDimension: ecs:service:DesiredCount
+      MinCapacity: 1
+      MaxCapacity: 5
+      RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService
+
+  BookingScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: aerolink-booking-cpu
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref BookingScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 60.0
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        ScaleOutCooldown: 30
+        ScaleInCooldown: 120
+        DisableScaleIn: false
